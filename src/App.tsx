@@ -4,6 +4,7 @@ import { CafeWebsiteSandbox } from './components/CafeWebsiteSandbox'
 import { ImageGallerySandbox } from './components/ImageGallerySandbox'
 import { CollegeFestSandbox } from './components/CollegeFestSandbox'
 import { CicdPipelineSandbox } from './components/CicdPipelineSandbox'
+import { StandaloneWebsiteSandbox } from './components/StandaloneWebsiteSandbox'
 import { ProjectCard } from './components/ProjectCard'
 import { projects } from './data/projects'
 import './index.css'
@@ -41,6 +42,9 @@ export default function App() {
   }
   if (path === '/sandbox/cicd-pipeline') {
     return <CicdPipelineSandbox />
+  }
+  if (path === '/sandbox/standalone-website') {
+    return <StandaloneWebsiteSandbox />
   }
 
   return (
@@ -99,7 +103,7 @@ export default function App() {
           <div className="container">
             <div className="section-header">
               <h2>Featured systems</h2>
-              <span>05 — operate them, don't just read them</span>
+              <span>06 — operate them, don't just read them</span>
               <div className="section-rule" />
             </div>
             <div className="project-grid">

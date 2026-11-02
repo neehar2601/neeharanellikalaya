@@ -102,5 +102,24 @@ export const projects: Project[] = [
       { id: 'cf', name: 'CloudFront', detail: 'invalidate', short: 'CF' },
     ],
   },
+  {
+    id: 'standalone-website',
+    index: '06',
+    title: 'Hosting Standalone Website on AWS EC2',
+    subtitle: 'Secure single-instance reverse proxy routing with Apache/Caddy, loopback backend isolation, bastion access, and zero public IP coupling.',
+    description:
+      'Explore the networking and security architecture for hosting a standalone demo web application on AWS EC2: replacing naive multi-port exposure with Apache/Caddy reverse proxying, binding backends to localhost loopback, bastion host SSH ProxyJump, Vite static file serving, and eliminating public IP coupling.',
+    tags: ['AWS EC2', 'Reverse Proxy', 'Apache', 'Caddy', 'Security Groups', 'DNS', 'SSH Bastion', 'Vite Static', 'PostgreSQL'],
+    stages: [
+      { id: 'dns', name: 'DNS / EIP', detail: 'domain resolution', short: 'DNS' },
+      { id: 'secgroup', name: 'Security Group', detail: 'ports 80/443 only', short: 'SG' },
+      { id: 'proxy', name: 'Reverse Proxy', detail: 'Apache / Caddy', short: 'RP' },
+      { id: 'frontend', name: 'Static Frontend', detail: 'Vite dist build', short: 'VITE' },
+      { id: 'backend', name: 'Internal APIs', detail: '127.0.0.1:8000', short: 'API' },
+      { id: 'database', name: 'Local DB', detail: 'PostgreSQL:5432', short: 'DB' },
+      { id: 'bastion', name: 'SSH Bastion', detail: 'ProxyJump admin', short: 'SSH' },
+    ],
+  },
 ]
+
 

@@ -47,6 +47,12 @@ export function ProjectCard({ project }: { project: Project }) {
                 <a className="button" href="https://github.com/neehar2601/DevOps-Refresher" target="_blank" rel="noreferrer">GitHub repo ↗</a>
               </div>
             )}
+            {project.id === 'standalone-website' && (
+              <div className="cta-row project-sandbox-link">
+                <a className="button primary" href="/sandbox/standalone-website">Open EC2 reverse proxy lab →</a>
+                <a className="button" href="https://medium.com/@ngn22666/hosting-a-standalone-demo-website-on-aws-ec2-securely-with-a-reverse-proxy-e0e0914bda19?sharedUserId=ngn22666" target="_blank" rel="noreferrer">Read on Medium ↗</a>
+              </div>
+            )}
             <Pipeline project={project} />
           </div>
         </div>

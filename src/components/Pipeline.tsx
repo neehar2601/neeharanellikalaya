@@ -129,6 +129,29 @@ const projectConfigs: Record<string, ProjectSimConfig> = {
       sub2: 'Secure S3 staging gate · production sync & cache invalidation',
     },
   },
+  'standalone-website': {
+    idleMessage: 'idle — click "▶ run flow preview" to simulate reverse proxy routing & loopback isolation',
+    successMessage: 'secure 200 OK — reverse proxy routed request via localhost; database & API ports unexposed',
+    stageDescriptions: [
+      '1/7 · User queries domain: DNS resolves to stable EC2 Elastic IP',
+      '2/7 · AWS Security Group permits inbound traffic exclusively on ports 80 & 443',
+      '3/7 · Reverse proxy (Apache/Caddy) terminates TLS and inspects HTTP Layer 7 request path',
+      '4/7 · Root (/) requests served directly from static Vite SPA document root (/var/www/demo)',
+      '5/7 · API (/api/) requests proxied over loopback to internal backend at 127.0.0.1:8000',
+      '6/7 · Backend queries PostgreSQL on 127.0.0.1:5432 — database port completely unexposed',
+      '7/7 · Secure admin access: SSH ProxyJump routes through bastion host without public key copying',
+    ],
+    metrics: {
+      head1: 'Attack Surface',
+      tag1: 'AWS Security Group',
+      val1: '2 Ports Open (80/443)',
+      sub1: 'Ports 5173, 8000, 8001, 5432, 6379 strictly closed externally',
+      head2: 'Routing Architecture',
+      tag2: 'Caddy / Apache L7 Proxy',
+      val2: '127.0.0.1 Loopback',
+      sub2: 'Clean zero-public-IP coupling · automatic TLS certificate renewal',
+    },
+  },
 }
 
 export function Pipeline({ project }: Props) {
