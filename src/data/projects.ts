@@ -120,6 +120,24 @@ export const projects: Project[] = [
       { id: 'bastion', name: 'SSH Bastion', detail: 'ProxyJump admin', short: 'SSH' },
     ],
   },
+  {
+    id: 'keycloak-auth',
+    index: '07',
+    title: 'Enterprise Authentication with Keycloak, OAuth 2.0 & JWT',
+    subtitle: 'Centralized IAM with Keycloak, OAuth 2.0 token issuance, asymmetric RS256 JWT cryptographic validation via JWKS, and least-privilege RBAC.',
+    description:
+      'Explore modern enterprise identity and access management modeled after FarmSight 360 & AuthLab: integrating Keycloak 26 as an OpenID Connect (OIDC) Identity Provider, issuing asymmetric RS256 JWT access tokens, stateless cryptographic signature validation via JSON Web Key Sets (JWKS), and least-privilege Role-Based Access Control (RBAC) across Python Flask microservices and PostgreSQL.',
+    tags: ['Keycloak 26', 'OAuth 2.0', 'OIDC', 'RS256 JWT', 'JWKS', 'Flask / Python', 'PostgreSQL', 'Docker Compose', 'RBAC'],
+    stages: [
+      { id: 'client', name: 'Client App', detail: 'OAuth request', short: 'CLI' },
+      { id: 'keycloak', name: 'Keycloak IdP', detail: 'authenticates', short: 'KC' },
+      { id: 'token', name: 'Token Issuer', detail: 'RS256 signed', short: 'JWT' },
+      { id: 'jwks', name: 'JWKS Cache', detail: 'public certs', short: 'KEYS' },
+      { id: 'resource', name: 'Resource API', detail: 'stateless verify', short: 'API' },
+      { id: 'rbac', name: 'RBAC Gate', detail: 'role check', short: 'RBAC' },
+      { id: 'postgres', name: 'PostgreSQL', detail: 'tenant data', short: 'DB' },
+    ],
+  },
 ]
 
 

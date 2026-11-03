@@ -152,6 +152,29 @@ const projectConfigs: Record<string, ProjectSimConfig> = {
       sub2: 'Clean zero-public-IP coupling · automatic TLS certificate renewal',
     },
   },
+  'keycloak-auth': {
+    idleMessage: 'idle — click "▶ run flow preview" to simulate OAuth 2.0 token grant, RS256 verification & RBAC check',
+    successMessage: 'authorized 200 OK — Keycloak issued RS256 token; Flask API verified signature against JWKS & authorized roles',
+    stageDescriptions: [
+      '1/7 · Client initiates OAuth 2.0 authentication flow with Keycloak (Authorization Code / Direct Grants)',
+      '2/7 · Keycloak validates user credentials against PostgreSQL realm store and assigns realm roles',
+      '3/7 · Keycloak signs JWT Access Token using RSA Private Key (RS256 algorithm with kid header)',
+      '4/7 · Resource API fetches and caches Keycloak JSON Web Key Set (JWKS) public certificates',
+      '5/7 · Client attaches Bearer token: Resource API verifies signature, issuer & audience statelessly',
+      '6/7 · RBAC gate checks token claims (realm_access.roles) against endpoint requirements',
+      '7/7 · Database query executed for authorized tenant data — unauthorized roles receive 403 Forbidden',
+    ],
+    metrics: {
+      head1: 'IAM Security',
+      tag1: 'RS256 Cryptography',
+      val1: 'Stateless JWKS',
+      sub1: 'Zero DB hits on Keycloak during API token verification',
+      head2: 'Access Model',
+      tag2: 'OAuth 2.0 + RBAC',
+      val2: 'Role Enforced',
+      sub2: 'Least-privilege isolation: Farmer, Contractor & Admin',
+    },
+  },
 }
 
 export function Pipeline({ project }: Props) {
