@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { NavBrand } from './NavBrand'
-import { AuthTopologyMap, type AuthPersona, type AuthEndpoint } from './sandbox/AuthTopologyMap'
+import { AuthTopologyMap, type AuthPersona, type AuthEndpoint, type DiagramMode } from './sandbox/AuthTopologyMap'
 
-type ViewTab = 'simulator' | 'jwt' | 'guide' | 'configs' | 'security'
-type ConfigTab = 'docker-compose' | 'flask-api' | 'demo-script' | 'env' | 'frontend'
+type ViewTab = 'simulator' | 'what-how-why' | 'jwt' | 'configs' | 'security'
+type LabPhase = 'phase-1' | 'phase-2'
+type ConfigTab = 'phase1-compose' | 'phase1-api' | 'phase2-auth' | 'phase2-tests' | 'phase2-compose' | 'demo-script'
 
 interface EndpointConfig {
   id: AuthEndpoint
@@ -15,7 +16,7 @@ interface EndpointConfig {
   description: string
 }
 
-const endpoints: Record<AuthEndpoint, EndpointConfig> = {
+const endpointsPhase1: Record<string, EndpointConfig> = {
   public: {
     id: 'public',
     method: 'GET',
@@ -30,7 +31,7 @@ const endpoints: Record<AuthEndpoint, EndpointConfig> = {
     method: 'GET',
     path: '/api/me',
     label: '2. User Profile (/api/me)',
-    requiredRoles: ['farmer', 'service_provider', 'admin'],
+    requiredRoles: ['viewer', 'admin', 'farmer', 'service_provider'],
     isPublic: false,
     description: 'Returns identity claims of the authenticated user. Accessible by any valid realm user.',
   },
@@ -72,6 +73,45 @@ const endpoints: Record<AuthEndpoint, EndpointConfig> = {
   },
 }
 
+const endpointsPhase2: Record<string, EndpointConfig> = {
+  public: {
+    id: 'public',
+    method: 'GET',
+    path: '/api/public',
+    label: '1. Public Probe (/api/public)',
+    requiredRoles: [],
+    isPublic: true,
+    description: 'Unprotected endpoint returning status 200 OK without any Authorization header.',
+  },
+  me: {
+    id: 'me',
+    method: 'GET',
+    path: '/api/me',
+    label: '2. Verified Claims (/api/me)',
+    requiredRoles: ['viewer', 'developer', 'admin'],
+    isPublic: false,
+    description: 'Returns verified JWT subject, issuer, audience, and active role claims.',
+  },
+  users: {
+    id: 'users',
+    method: 'GET',
+    path: '/api/users',
+    label: '3. Standard Access (/api/users)',
+    requiredRoles: ['viewer', 'developer', 'admin'],
+    isPublic: false,
+    description: 'Accessible by any authenticated user regardless of whether they are a viewer or developer.',
+  },
+  'admin-users': {
+    id: 'admin-users',
+    method: 'GET',
+    path: '/api/admin/users',
+    label: '4. Privileged Admin (/api/admin/users)',
+    requiredRoles: ['admin'],
+    isPublic: false,
+    description: 'Restricted strictly to role: admin. Returns 403 Forbidden for Alice and Drench!',
+  },
+}
+
 interface PersonaInfo {
   id: AuthPersona
   name: string
@@ -79,10 +119,10 @@ interface PersonaInfo {
   group: string
   description: string
   tokenValid: boolean
-  isTampered: boolean
+  isAttacker: boolean
 }
 
-const personas: Record<AuthPersona, PersonaInfo> = {
+const personasPhase1: Record<string, PersonaInfo> = {
   farmer: {
     id: 'farmer',
     name: 'Ramesh (Farmer)',
@@ -90,7 +130,7 @@ const personas: Record<AuthPersona, PersonaInfo> = {
     group: 'Farmers',
     description: 'Farm owner managing crop plots, worker attendance, and contracting machinery.',
     tokenValid: true,
-    isTampered: false,
+    isAttacker: false,
   },
   service_provider: {
     id: 'service_provider',
@@ -99,7 +139,7 @@ const personas: Record<AuthPersona, PersonaInfo> = {
     group: 'ServiceProviders',
     description: 'Agricultural contractor offering drone spraying, combine harvesters, and soil testing.',
     tokenValid: true,
-    isTampered: false,
+    isAttacker: false,
   },
   admin: {
     id: 'admin',
@@ -108,7 +148,7 @@ const personas: Record<AuthPersona, PersonaInfo> = {
     group: 'Admins',
     description: 'Platform superuser with full administrative privileges across all realm entities.',
     tokenValid: true,
-    isTampered: false,
+    isAttacker: false,
   },
   anonymous: {
     id: 'anonymous',
@@ -117,33 +157,95 @@ const personas: Record<AuthPersona, PersonaInfo> = {
     group: 'Public',
     description: 'Unauthenticated caller with no Authorization Bearer header attached to request.',
     tokenValid: false,
-    isTampered: false,
+    isAttacker: false,
   },
   tampered: {
     id: 'tampered',
-    name: 'Malicious Attacker (Tampered JWT)',
+    name: 'Malicious Attacker (Tampered Token)',
     role: 'farmer -> escalated to admin',
     group: 'Attackers',
     description: 'Forged token with client-side payload modification without Keycloak private RSA key.',
     tokenValid: false,
-    isTampered: true,
+    isAttacker: true,
+  },
+}
+
+const personasPhase2: Record<string, PersonaInfo> = {
+  alice: {
+    id: 'alice',
+    name: 'Alice (Viewer / Standard User)',
+    role: 'viewer',
+    group: 'Viewers',
+    description: 'Standard application user with viewer role permissions. Can access /api/me and /api/users.',
+    tokenValid: true,
+    isAttacker: false,
+  },
+  drench: {
+    id: 'drench',
+    name: 'Drench (Developer)',
+    role: 'developer',
+    group: 'Developers',
+    description: 'Developer role. Granted access to engineering resources but restricted from master admin.',
+    tokenValid: true,
+    isAttacker: false,
+  },
+  admin: {
+    id: 'admin',
+    name: 'Bob (Admin / Superuser)',
+    role: 'admin',
+    group: 'Admins',
+    description: 'Superuser account possessing role: admin. Granted access to privileged /api/admin/users.',
+    tokenValid: true,
+    isAttacker: false,
+  },
+  anonymous: {
+    id: 'anonymous',
+    name: 'Anonymous (No Token)',
+    role: 'none',
+    group: 'Public',
+    description: 'Unauthenticated caller. Missing Bearer token in HTTP Authorization header.',
+    tokenValid: false,
+    isAttacker: false,
+  },
+  mallory: {
+    id: 'mallory',
+    name: 'Mallory (Cryptographic Attacker)',
+    role: 'attacker (seeking admin)',
+    group: 'Attackers',
+    description: 'Adversary testing alg: none, CVE-2015-9235 HS256 key confusion, and expired token replays.',
+    tokenValid: false,
+    isAttacker: true,
   },
 }
 
 export function KeycloakAuthSandbox() {
   const [activeTab, setActiveTab] = useState<ViewTab>('simulator')
-  const [activeConfig, setActiveConfig] = useState<ConfigTab>('docker-compose')
-  const [selectedPersona, setSelectedPersona] = useState<AuthPersona>('farmer')
-  const [selectedEndpoint, setSelectedEndpoint] = useState<AuthEndpoint>('crops')
+  const [labPhase, setLabPhase] = useState<LabPhase>('phase-2')
+  const [activeConfig, setActiveConfig] = useState<ConfigTab>('phase2-auth')
+  const [diagramMode, setDiagramMode] = useState<DiagramMode>('architecture')
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
-  // Tamper lab interactive controls
-  const [tamperRole, setTamperRole] = useState(false)
-  const [tamperExpire, setTamperExpire] = useState(false)
-  const [tamperIssuer, setTamperIssuer] = useState(false)
+  // Simulation state
+  const [selectedPersonaP1, setSelectedPersonaP1] = useState<AuthPersona>('farmer')
+  const [selectedEndpointP1, setSelectedEndpointP1] = useState<AuthEndpoint>('crops')
 
-  const persona = personas[selectedPersona]
-  const endpoint = endpoints[selectedEndpoint]
+  const [selectedPersonaP2, setSelectedPersonaP2] = useState<AuthPersona>('alice')
+  const [selectedEndpointP2, setSelectedEndpointP2] = useState<AuthEndpoint>('users')
+
+  // Phase 2 Exploit Simulator state
+  const [activeExploit, setActiveExploit] = useState<'none' | 'hs256' | 'tamper' | 'expired' | 'rogue-key' | 'rotation' | null>(null)
+  const [keyRotated, setKeyRotated] = useState(false)
+  const [keyRetired, setKeyRetired] = useState(false)
+
+  const isPhase2 = labPhase === 'phase-2'
+  const personaMap = isPhase2 ? personasPhase2 : personasPhase1
+  const endpointMap = isPhase2 ? endpointsPhase2 : endpointsPhase1
+
+  const currentPersonaKey = isPhase2 ? selectedPersonaP2 : selectedPersonaP1
+  const persona = personaMap[currentPersonaKey] || personaMap.alice || personaMap.farmer
+
+  const currentEndpointKey = isPhase2 ? selectedEndpointP2 : selectedEndpointP1
+  const endpoint = endpointMap[currentEndpointKey] || endpointMap.users || endpointMap.crops
 
   // Calculate access decision
   let decision: 'ALLOW' | 'DENY_401' | 'DENY_403' = 'ALLOW'
@@ -152,8 +254,8 @@ export function KeycloakAuthSandbox() {
     decision = 'ALLOW'
   } else if (!persona.tokenValid || persona.id === 'anonymous') {
     decision = 'DENY_401'
-  } else if (persona.isTampered) {
-    decision = 'DENY_401' // Signature validation failure
+  } else if (persona.isAttacker || activeExploit) {
+    decision = 'DENY_401' // Signature / exploit validation failure
   } else if (!endpoint.requiredRoles.includes(persona.role)) {
     decision = 'DENY_403' // RBAC role rejection
   } else {
@@ -166,38 +268,35 @@ export function KeycloakAuthSandbox() {
     setTimeout(() => setCopiedCode(null), 2200)
   }
 
-  // Generated JWT token simulation components
+  // Token Simulation Claims
+  const activeKid = keyRotated && !keyRetired ? '8f2d9c1b' : 'e7b1a49f'
+
   const tokenHeader = {
-    alg: 'RS256',
+    alg: activeExploit === 'none' ? 'none' : activeExploit === 'hs256' ? 'HS256' : 'RS256',
     typ: 'JWT',
-    kid: 'farm360-keycloak-rsa-key-2026',
+    kid: activeExploit === 'rogue-key' ? 'attacker-foreign-key' : activeKid,
   }
 
   const tokenPayload = {
-    exp: tamperExpire ? Math.floor(Date.now() / 1000) - 3600 : Math.floor(Date.now() / 1000) + 900,
+    iss: isPhase2 ? 'http://localhost:5001' : 'http://localhost:8080/realms/authlab',
+    aud: isPhase2 ? 'authlab-api' : 'authlab-api',
+    sub: persona.id,
+    roles: activeExploit === 'tamper' || activeExploit === 'none' || activeExploit === 'hs256'
+      ? ['admin']
+      : [persona.role],
     iat: Math.floor(Date.now() / 1000) - 60,
-    jti: '9b2c8a1e-450f-48d1-93e1-8fbb49e28c25',
-    iss: tamperIssuer ? 'http://attacker-evil-host.com/realms/fake' : 'http://localhost:8080/realms/farm360',
-    aud: 'farm360-api',
-    sub: selectedPersona === 'farmer' ? 'usr-f482-ramesh' : selectedPersona === 'service_provider' ? 'usr-s910-kiran' : 'usr-a001-admin',
-    typ: 'Bearer',
-    azp: 'farm360-web',
-    preferred_username: selectedPersona === 'farmer' ? 'ramesh' : selectedPersona === 'service_provider' ? 'kiran' : 'admin_farm',
-    email: `${selectedPersona === 'farmer' ? 'ramesh' : selectedPersona === 'service_provider' ? 'kiran' : 'admin'}@farmsight360.com`,
-    realm_access: {
-      roles: tamperRole ? ['admin', 'farmer'] : [persona.role, 'default-roles-farm360'],
-    },
-    resource_access: {
-      'farm360-api': {
-        roles: tamperRole ? ['admin'] : [persona.role],
-      },
-    },
-    scope: 'openid profile email',
+    exp: activeExploit === 'expired' ? Math.floor(Date.now() / 1000) - 1800 : Math.floor(Date.now() / 1000) + 900,
+    preferred_username: persona.id,
+    email: `${persona.id}@${isPhase2 ? 'authlab.dev' : 'farmsight360.com'}`,
   }
 
-  const tokenSignature = tamperRole || tamperExpire || tamperIssuer
-    ? 'INVALID_SIGNATURE_MISMATCH_RSA256_VERIFICATION_FAILED'
-    : 'sJ82_Lkp9Q_2VwM1xN9ZbK4tEw5rY7uI9oP1qR3tU5vW7xY9zB2cE4gH6jL8mO0qS2uV4xZ6'
+  const tokenSignature = activeExploit === 'none'
+    ? ''
+    : activeExploit === 'hs256'
+      ? 'HMAC_SHA256_USING_PUBLIC_RSA_PEM_AS_SECRET'
+      : activeExploit
+        ? 'INVALID_TAMPERED_SIGNATURE_MISMATCH'
+        : 'RSASHA256_e829fa_sJ82Lkp9Q2VwM1xN9ZbK4tEw5rY7uI9oP1qR3tU5'
 
   return (
     <div className="sandbox-shell fade-in">
@@ -205,7 +304,9 @@ export function KeycloakAuthSandbox() {
       <nav className="sandbox-topbar">
         <div className="container sandbox-topbar-inner">
           <NavBrand href="/#projects" />
-          <div className="sandbox-breadcrumb">SANDBOX / KEYCLOAK IAM & OAUTH 2.0 · v0.5.7</div>
+          <div className="sandbox-breadcrumb">
+            SANDBOX / AUTHLAB PHASES 1 &amp; 2 · {isPhase2 ? 'PHASE 2 (OFFENSIVE/DEFENSIVE)' : 'PHASE 1 (ENTERPRISE IDP)'} · v0.5.7
+          </div>
           <a className="sandbox-back" href="/#projects">← back to projects</a>
         </div>
       </nav>
@@ -216,19 +317,19 @@ export function KeycloakAuthSandbox() {
         <header className="hero" style={{ paddingBottom: '20px' }}>
           <div className="container">
             <div className="kicker">
-              <span className="kicker-dot" /> IAM Architecture · OAuth 2.0 & OIDC · Keycloak 26
+              <span className="kicker-dot" /> AuthLab: What, How and Why · Phases 1 &amp; 2 Engineering Guide
             </div>
             <h1 style={{ margin: '8px 0 12px', fontSize: '32px', letterSpacing: '-0.03em' }}>
-              Enterprise Authentication & IAM with Keycloak
+              AuthLab: Enterprise IAM &amp; JWT Attack Platform
             </h1>
-            <p className="hero-copy" style={{ maxWidth: '840px', margin: '0 0 20px', fontSize: '15px', lineHeight: '1.6' }}>
-              An interactive identity and access management laboratory based on <strong>FarmSight 360 & AuthLab</strong>.
-              Explore how <strong>Keycloak 26</strong> issues asymmetric <strong>RS256 JSON Web Tokens (JWT)</strong>,
-              how Flask Resource APIs verify signatures statelessly using public <strong>JSON Web Key Sets (JWKS)</strong>,
-              and how <strong>Role-Based Access Control (RBAC)</strong> enforces least-privilege security across multi-tenant microservices.
+            <p className="hero-copy" style={{ maxWidth: '880px', margin: '0 0 20px', fontSize: '15px', lineHeight: '1.6' }}>
+              A hands-on walkthrough exploring the two sides of authentication: the <strong>Issuer</strong> (Identity Provider proving who you are)
+              and the <strong>Resource Server</strong> (API verifying tokens on every request).
+              Compare <strong>Phase 1: Real Identity Provider (Keycloak 26 + PostgreSQL)</strong> with
+              <strong> Phase 2: Build &amp; Break Your Own JWT Issuer (CVE-2015-9235, <code>alg: none</code>, KeyStore rotation, and 16 automated exploit unit tests)</strong>.
             </p>
 
-            <div className="cta-row" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="cta-row" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <a
                 className="button primary"
                 href="https://github.com/neehar2601/Authentication"
@@ -240,39 +341,83 @@ export function KeycloakAuthSandbox() {
               <span className="tag" style={{ border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8' }}>
                 Keycloak 26.0 (Quay)
               </span>
-              <span className="tag" style={{ border: '1px solid rgba(79, 209, 197, 0.3)', color: 'var(--teal)' }}>
-                OAuth 2.0 / OIDC
+              <span className="tag" style={{ border: '1px solid rgba(232, 115, 93, 0.3)', color: 'var(--red)' }}>
+                16 Pytest Security Exploits
               </span>
               <span className="tag" style={{ border: '1px solid rgba(167, 139, 250, 0.3)', color: '#a78bfa' }}>
-                RS256 Asymmetric JWT
+                CVE-2015-9235 Defense
               </span>
-              <span className="tag" style={{ border: '1px solid rgba(232, 163, 61, 0.3)', color: 'var(--amber)' }}>
-                PostgreSQL 16
+              <span className="tag" style={{ border: '1px solid rgba(79, 209, 197, 0.3)', color: 'var(--teal)' }}>
+                RS256 &amp; JWKS Rotation
               </span>
             </div>
 
+            {/* PHASE SWITCHER BAR */}
+            <div
+              className="standalone-card"
+              style={{
+                padding: '14px 18px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                borderLeft: '4px solid var(--teal)',
+              }}
+            >
+              <div>
+                <span className="control-label" style={{ display: 'block', marginBottom: '2px' }}>
+                  Laboratory Phase Selection
+                </span>
+                <strong style={{ fontSize: '13.5px', color: 'var(--text)' }}>
+                  {isPhase2
+                    ? '🛡️ Phase 2: Build & Break Your Own JWT Issuer (CVE-2015-9235, alg: none, KeyStore Rotation, 16 Pytest Suite)'
+                    : '🌾 Phase 1: Real Identity Provider & Protected API (Keycloak 26, PostgreSQL 16, Flask API)'}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className={`button ${labPhase === 'phase-1' ? 'primary' : ''}`}
+                  style={{ fontSize: '11px', padding: '6px 14px' }}
+                  onClick={() => setLabPhase('phase-1')}
+                >
+                  🌾 Phase 1: Keycloak Stack
+                </button>
+                <button
+                  type="button"
+                  className={`button ${labPhase === 'phase-2' ? 'primary' : ''}`}
+                  style={{ fontSize: '11px', padding: '6px 14px' }}
+                  onClick={() => setLabPhase('phase-2')}
+                >
+                  🛡️ Phase 2: JWT Attack Lab
+                </button>
+              </div>
+            </div>
+
             {/* Navigation Tabs */}
-            <div className="standalone-tab-row" style={{ marginTop: '32px', display: 'flex', gap: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '12px', overflowX: 'auto' }}>
+            <div className="standalone-tab-row" style={{ marginTop: '16px', display: 'flex', gap: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '12px', overflowX: 'auto' }}>
               <button
                 type="button"
                 className={`tab-btn ${activeTab === 'simulator' ? 'active' : ''}`}
                 onClick={() => setActiveTab('simulator')}
               >
-                ⚡ Interactive Lab & Topology
+                ⚡ Interactive Lab &amp; Topology (5 Flow Diagrams)
+              </button>
+              <button
+                type="button"
+                className={`tab-btn ${activeTab === 'what-how-why' ? 'active' : ''}`}
+                onClick={() => setActiveTab('what-how-why')}
+              >
+                📐 What, How &amp; Why (Architecture Walkthrough)
               </button>
               <button
                 type="button"
                 className={`tab-btn ${activeTab === 'jwt' ? 'active' : ''}`}
                 onClick={() => setActiveTab('jwt')}
               >
-                🔑 JWT Deep Dive & Tamper Lab
-              </button>
-              <button
-                type="button"
-                className={`tab-btn ${activeTab === 'guide' ? 'active' : ''}`}
-                onClick={() => setActiveTab('guide')}
-              >
-                📖 Complete Technical Guide
+                💥 Phase 2 Attack Simulator &amp; JWT Lab
               </button>
               <button
                 type="button"
@@ -286,14 +431,14 @@ export function KeycloakAuthSandbox() {
                 className={`tab-btn ${activeTab === 'security' ? 'active' : ''}`}
                 onClick={() => setActiveTab('security')}
               >
-                🛡️ Security & IAM Audit
+                🛡️ 16-Exploit Audit &amp; Matrix
               </button>
             </div>
           </div>
         </header>
 
         {/* ============================================================= */}
-        {/* TAB 1: INTERACTIVE SIMULATOR & TOPOLOGY                       */}
+        {/* TAB 1: INTERACTIVE SIMULATOR & TOPOLOGY (5 FLOW DIAGRAMS)     */}
         {/* ============================================================= */}
         {activeTab === 'simulator' && (
           <section className="section" style={{ paddingTop: '16px' }}>
@@ -302,34 +447,49 @@ export function KeycloakAuthSandbox() {
               <div className="standalone-card" style={{ padding: '20px', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
-                    <span className="control-label" style={{ display: 'block', marginBottom: '4px' }}>Step 1: Select Active User Identity / Persona</span>
+                    <span className="control-label" style={{ display: 'block', marginBottom: '4px' }}>
+                      Step 1: Select Active User Identity ({isPhase2 ? 'Phase 2 Testbench' : 'Phase 1 FarmSight 360'})
+                    </span>
                     <strong style={{ fontSize: '14px', color: 'var(--text)' }}>
-                      Current Identity: {persona.name} · Role: <code>{persona.role}</code> · Group: <code>{persona.group}</code>
+                      Identity: {persona.name} · Role: <code>{persona.role}</code> · Group: <code>{persona.group}</code>
                     </strong>
                   </div>
-                  <span className="tag" style={{ font: '10px var(--mono)', color: persona.tokenValid ? 'var(--teal)' : 'var(--red)' }}>
-                    {persona.tokenValid ? 'VALID OIDC TOKEN' : persona.isTampered ? 'TAMPERED TOKEN' : 'UNAUTHENTICATED'}
-                  </span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span className="tag" style={{ font: '10px var(--mono)' }}>Roundtrip: 14ms</span>
+                    <span className="tag" style={{ font: '10px var(--mono)', color: persona.tokenValid ? 'var(--teal)' : 'var(--red)' }}>
+                      {persona.tokenValid ? 'VALID OIDC TOKEN' : persona.isAttacker ? 'ATTACK / TAMPERED' : 'UNAUTHENTICATED'}
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-                  {(['farmer', 'service_provider', 'admin', 'anonymous', 'tampered'] as AuthPersona[]).map((pKey) => {
-                    const p = personas[pKey]
-                    const isSelected = selectedPersona === pKey
+                  {(Object.keys(personaMap) as AuthPersona[]).map((pKey) => {
+                    const p = personaMap[pKey]
+                    const isSelected = isPhase2 ? selectedPersonaP2 === pKey : selectedPersonaP1 === pKey
                     return (
                       <button
                         key={pKey}
                         type="button"
-                        onClick={() => setSelectedPersona(pKey)}
-                        className={`standalone-scenario-btn ${isSelected ? 'active' : ''} ${p.isTampered ? 'is-attack' : ''}`}
+                        onClick={() => {
+                          if (isPhase2) {
+                            setSelectedPersonaP2(pKey)
+                            if (p.isAttacker) setActiveExploit('tamper')
+                            else setActiveExploit(null)
+                          } else {
+                            setSelectedPersonaP1(pKey)
+                          }
+                        }}
+                        className={`standalone-scenario-btn ${isSelected ? 'active' : ''} ${p.isAttacker ? 'is-attack' : ''}`}
                         style={{ padding: '12px 14px' }}
                       >
                         <span className="method-pill">
                           {pKey === 'farmer' && '🌾 FARMER'}
                           {pKey === 'service_provider' && '🚜 CONTRACTOR'}
+                          {pKey === 'alice' && '👩‍💻 VIEWER'}
+                          {pKey === 'drench' && '🧑‍💻 DEV'}
                           {pKey === 'admin' && '🛡️ ADMIN'}
                           {pKey === 'anonymous' && '👤 GUEST'}
-                          {pKey === 'tampered' && '🦹 ATTACKER'}
+                          {(pKey === 'tampered' || pKey === 'mallory') && '🦹 ATTACKER'}
                         </span>
                         <strong style={{ marginTop: '4px' }}>{p.name.split(' ')[0]}</strong>
                         <small>{p.role}</small>
@@ -343,25 +503,30 @@ export function KeycloakAuthSandbox() {
               <div className="standalone-card" style={{ padding: '20px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
-                    <span className="control-label" style={{ display: 'block', marginBottom: '4px' }}>Step 2: Probe Resource API Endpoint</span>
+                    <span className="control-label" style={{ display: 'block', marginBottom: '4px' }}>
+                      Step 2: Probe API Endpoint ({isPhase2 ? 'Phase 2 Endpoint Runner' : 'Phase 1 Business Domain'})
+                    </span>
                     <strong style={{ fontSize: '14px', color: 'var(--text)' }}>
                       {endpoint.method} {endpoint.path} — {endpoint.label}
                     </strong>
                   </div>
                   <span className="tag" style={{ font: '10px var(--mono)' }}>
-                    Required Roles: {endpoint.isPublic ? 'None (Public)' : endpoint.requiredRoles.join(' | ')}
+                    Required: {endpoint.isPublic ? 'None (Public)' : endpoint.requiredRoles.join(' | ')}
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
-                  {(Object.keys(endpoints) as AuthEndpoint[]).map((eKey) => {
-                    const ep = endpoints[eKey]
-                    const isSelected = selectedEndpoint === eKey
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                  {(Object.keys(endpointMap) as AuthEndpoint[]).map((eKey) => {
+                    const ep = endpointMap[eKey]
+                    const isSelected = isPhase2 ? selectedEndpointP2 === eKey : selectedEndpointP1 === eKey
                     return (
                       <button
                         key={eKey}
                         type="button"
-                        onClick={() => setSelectedEndpoint(eKey)}
+                        onClick={() => {
+                          if (isPhase2) setSelectedEndpointP2(eKey)
+                          else setSelectedEndpointP1(eKey)
+                        }}
                         className={`standalone-scenario-btn ${isSelected ? 'active' : ''}`}
                         style={{ padding: '10px 12px' }}
                       >
@@ -370,7 +535,7 @@ export function KeycloakAuthSandbox() {
                             {ep.method}
                           </span>
                           <span style={{ font: '9px var(--mono)', color: ep.isPublic ? 'var(--teal)' : 'var(--faint)' }}>
-                            {ep.isPublic ? 'PUBLIC' : 'RBAC PROTECTED'}
+                            {ep.isPublic ? 'PUBLIC' : 'RBAC GUARDED'}
                           </span>
                         </div>
                         <strong style={{ marginTop: '4px', fontSize: '12px' }}>{ep.path}</strong>
@@ -381,12 +546,16 @@ export function KeycloakAuthSandbox() {
                 </div>
               </div>
 
-              {/* High-Fidelity SVG Topology Map with Animated Packet Flows */}
+              {/* High-Fidelity SVG Topology Map with 5 Interactive Diagram Modes */}
               <div style={{ marginBottom: '24px' }}>
                 <AuthTopologyMap
-                  persona={selectedPersona}
-                  endpoint={selectedEndpoint}
+                  phase={labPhase}
+                  persona={currentPersonaKey}
+                  endpoint={currentEndpointKey}
                   decision={decision}
+                  activeExploit={activeExploit}
+                  diagramMode={diagramMode}
+                  onSelectDiagramMode={(mode) => setDiagramMode(mode)}
                 />
               </div>
 
@@ -398,11 +567,11 @@ export function KeycloakAuthSandbox() {
                     <span className="term-dot" />
                     <span className="term-dot" />
                     <span className="term-dot" />
-                    <span className="term-title">auth-trace / {selectedPersona} / {selectedEndpoint}</span>
+                    <span className="term-title">auth-trace / {labPhase} / {persona.id} / {endpoint.path}</span>
                   </div>
                   <div className="term-body" style={{ font: '12px/1.55 var(--mono)' }}>
                     <div style={{ color: 'var(--muted)', marginBottom: '8px' }}>
-                      # Request Simulation via cURL CLI:
+                      # {isPhase2 ? 'Phase 2 Web Test Bench & Exploit Trace:' : 'Phase 1 Request Simulation via cURL CLI:'}
                     </div>
                     <div style={{ color: 'var(--text)', marginBottom: '12px' }}>
                       $ curl -s -i -X {endpoint.method} &quot;http://localhost:5001{endpoint.path}&quot; \{'\n'}
@@ -413,40 +582,40 @@ export function KeycloakAuthSandbox() {
                     </div>
 
                     <div style={{ color: 'var(--muted)', borderTop: '1px solid var(--line-soft)', paddingTop: '10px', marginBottom: '8px' }}>
-                      # Flask Resource API Verification Steps:
+                      # 6-Step Server Verification Decision Matrix:
                     </div>
                     <div>1. Inbound Request: <span style={{ color: 'var(--teal)' }}>{endpoint.method} {endpoint.path}</span></div>
 
                     {endpoint.isPublic ? (
                       <div style={{ color: 'var(--teal)' }}>
-                        2. Route flagged @public_route ➔ Bypassing JWT validation gate
+                        2. Route flagged @public_route ➔ Bypassing JWT validation gate (200 OK)
                       </div>
                     ) : persona.id === 'anonymous' ? (
                       <div style={{ color: 'var(--red)' }}>
                         2. Missing Authorization header ➔ 401 Unauthorized (&quot;Bearer token required&quot;)
                       </div>
-                    ) : persona.isTampered ? (
+                    ) : activeExploit ? (
                       <div style={{ color: 'var(--red)' }}>
-                        2. PyJWKClient extracted kid ➔ RSA signature verification FAILED!{'\n'}
-                        &nbsp;&nbsp;[CRITICAL] Payload hash does not match Keycloak signature!
+                        2. Exploit [{activeExploit}] intercepted!{'\n'}
+                        &nbsp;&nbsp;[HARDENED VERIFIER] Deflected by strict RS256 algorithm allow-list and signature check!
                       </div>
                     ) : (
                       <>
                         <div style={{ color: 'var(--teal)' }}>
-                          2. Token present ➔ PyJWKClient fetched matching RSA public cert from JWKS cache
+                          2. Token present ➔ Matching public RSA cert fetched from JWKS cache (kid: {activeKid})
                         </div>
                         <div style={{ color: 'var(--teal)' }}>
-                          3. RS256 signature verified against Keycloak public key ✓
+                          3. RS256 signature verified against public key ✓
                         </div>
                         <div style={{ color: 'var(--teal)' }}>
-                          4. Claims checked: iss=farm360, aud=farm360-api, exp valid ✓
+                          4. Claims verified: iss={isPhase2 ? 'http://localhost:5001' : 'http://localhost:8080/realms/authlab'}, aud=authlab-api, exp valid ✓
                         </div>
                         <div>
                           5. RBAC Policy Check: user has role <code>[{persona.role}]</code> vs required <code>{JSON.stringify(endpoint.requiredRoles)}</code>
                         </div>
                         {decision === 'ALLOW' ? (
                           <div style={{ color: 'var(--teal)' }}>
-                            6. Role authorization PASSED ✓ ➔ Querying PostgreSQL store...
+                            6. Role authorization PASSED ✓ ➔ Executing authorized business logic (Roundtrip: 14ms)
                           </div>
                         ) : (
                           <div style={{ color: 'var(--red)' }}>
@@ -468,6 +637,17 @@ export function KeycloakAuthSandbox() {
                     <div style={{ marginTop: '6px' }}>
                       <span className="term-faint">RESPONSE BODY:</span>
                       <pre style={{ margin: '4px 0 0', color: decision === 'ALLOW' ? 'var(--teal)' : 'var(--red)', font: '11px/1.4 var(--mono)' }}>
+                        {decision === 'ALLOW' && endpoint.id === 'users' && JSON.stringify({
+                          status: 'success',
+                          users: [
+                            { username: 'alice', role: 'viewer', status: 'active' },
+                            { username: 'drench', role: 'developer', status: 'active' },
+                            { username: 'bob', role: 'admin', status: 'active' },
+                          ],
+                          requested_by: persona.name,
+                          latency_ms: 14,
+                        }, null, 2)}
+
                         {decision === 'ALLOW' && endpoint.id === 'crops' && JSON.stringify({
                           status: 'success',
                           data: [
@@ -490,25 +670,27 @@ export function KeycloakAuthSandbox() {
                           username: persona.name,
                           role: persona.role,
                           group: persona.group,
-                          realm: 'farm360',
+                          phase: labPhase,
+                          kid: activeKid,
                         }, null, 2)}
 
                         {decision === 'ALLOW' && (endpoint.id === 'admin-users' || endpoint.id === 'reset-pwd') && JSON.stringify({
                           status: 'success',
                           action: endpoint.id,
-                          managed_realm: 'farm360',
-                          executed_by: 'admin',
+                          managed_realm: isPhase2 ? 'Authlab' : 'authlab',
+                          executed_by: 'admin (bob)',
+                          admin_clearance: true,
                         }, null, 2)}
 
                         {decision === 'ALLOW' && endpoint.id === 'public' && JSON.stringify({
-                          service: 'FarmSight 360 API',
+                          service: isPhase2 ? 'AuthLab Phase 2 API' : 'FarmSight 360 API',
                           status: 'healthy',
                           timestamp: new Date().toISOString(),
                         }, null, 2)}
 
                         {decision === 'DENY_401' && JSON.stringify({
                           error: 'Unauthorized',
-                          message: persona.id === 'anonymous' ? 'Missing Bearer authorization token' : 'Token signature verification failed',
+                          message: persona.id === 'anonymous' ? 'Missing Bearer authorization token' : activeExploit ? `Cryptographic exploit '${activeExploit}' deflected by RS256 verifier` : 'Token signature verification failed',
                           code: 401,
                         }, null, 2)}
 
@@ -527,15 +709,15 @@ export function KeycloakAuthSandbox() {
                 <div className="standalone-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                      <span className="control-label" style={{ margin: 0 }}>Decoded JWT Claims</span>
+                      <span className="control-label" style={{ margin: 0 }}>Active Token Inspector</span>
                       <span className="tag" style={{ font: '9px var(--mono)', color: '#a78bfa' }}>
-                        ALGORITHM: RS256
+                        KID: {activeKid} · ALGORITHM: RS256
                       </span>
                     </div>
 
                     <div style={{ marginBottom: '16px' }}>
                       <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
-                        Keycloak Realm Access Roles (Claim: <code>realm_access.roles</code>):
+                        Active Token Roles &amp; Attributes:
                       </span>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {persona.id !== 'anonymous' ? (
@@ -543,12 +725,11 @@ export function KeycloakAuthSandbox() {
                             <span className="tag" style={{ background: 'rgba(79, 209, 197, 0.1)', color: 'var(--teal)', border: '1px solid var(--teal)' }}>
                               role: {persona.role}
                             </span>
-                            <span className="tag">default-roles-farm360</span>
-                            <span className="tag">offline_access</span>
-                            <span className="tag">uma_authorization</span>
+                            <span className="tag">{isPhase2 ? 'authlab-access' : 'farm360-access'}</span>
+                            <span className="tag">exp: in 15m</span>
                           </>
                         ) : (
-                          <span className="tag" style={{ color: 'var(--muted)' }}>No Token Claims (Anonymous)</span>
+                          <span className="tag" style={{ color: 'var(--muted)' }}>No Token Attached (Anonymous)</span>
                         )}
                       </div>
                     </div>
@@ -561,7 +742,7 @@ export function KeycloakAuthSandbox() {
                   </div>
 
                   <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--line-soft)', fontSize: '11.5px', color: 'var(--muted)' }}>
-                    <strong style={{ color: 'var(--text)' }}>Why RS256 beats HS256:</strong> With RS256, the Resource Server only needs Keycloak&apos;s public key to verify tokens. The signing private key never leaves Keycloak!
+                    <strong style={{ color: 'var(--text)' }}>KeyStore Rotation:</strong> Phase 2 supports dual-key rotation. When <code>store.rotate()</code> is invoked, old tokens continue validating until <code>store.retire()</code> drops the key.
                   </div>
                 </div>
               </div>
@@ -570,92 +751,656 @@ export function KeycloakAuthSandbox() {
         )}
 
         {/* ============================================================= */}
-        {/* TAB 2: JWT DEEP DIVE & TAMPER LAB                             */}
+        {/* TAB 2: WHAT, HOW & WHY (ARCHITECTURAL WALKTHROUGH)            */}
+        {/* ============================================================= */}
+        {activeTab === 'what-how-why' && (
+          <section className="section" style={{ paddingTop: '16px' }}>
+            <div className="container">
+              <div className="standalone-guide-layout" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px' }}>
+                {/* Sticky TOC Sidebar */}
+                <aside className="guide-toc-sidebar" style={{ position: 'sticky', top: '24px', height: 'fit-content' }}>
+                  <div className="standalone-card" style={{ padding: '16px' }}>
+                    <span className="control-label" style={{ display: 'block', marginBottom: '10px' }}>Walkthrough Index</span>
+                    <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <a href="#whw-big-picture" className="toc-link">1. The Big Picture</a>
+                      <a href="#whw-phase-1" className="toc-link">2. Phase 1: Real IdP &amp; Protected API</a>
+                      <a href="#whw-safe-defaults" className="toc-link">3. Safe Defaults on Purpose</a>
+                      <a href="#whw-api-validation" className="toc-link">4. How the API Validates a Token</a>
+                      <a href="#whw-keycloak-setup" className="toc-link">5. The Keycloak Setup &amp; Why</a>
+                      <a href="#whw-gotchas" className="toc-link">6. Gotchas Worth Writing About</a>
+                      <a href="#whw-phase-2" className="toc-link">7. Phase 2: Build &amp; Break Your Own Issuer</a>
+                      <a href="#whw-vulnerable-verifier" className="toc-link">8. The Deliberately Vulnerable Verifier</a>
+                      <a href="#whw-what-tests-prove" className="toc-link">9. What the 16 Tests Prove</a>
+                      <a href="#whw-interview-points" className="toc-link">10. Interview Talking Points</a>
+                    </nav>
+                  </div>
+                </aside>
+
+                {/* Article Content */}
+                <article className="guide-article-body">
+                  {/* Section 1: The Big Picture */}
+                  <section id="whw-big-picture">
+                    <h2>1. The Big Picture: Issuer vs. Resource Server</h2>
+                    <p>
+                      Authentication has two sides: the <strong>issuer</strong> (the identity provider, which proves who you are and hands out tokens)
+                      and the <strong>resource server</strong> (the API, which checks the token on every request).
+                    </p>
+                    <div className="guide-grid-two">
+                      <div className="guide-box" style={{ borderLeft: '3px solid #38bdf8' }}>
+                        <strong style={{ color: '#38bdf8' }}>Phase 1: Real Identity Provider</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
+                          Uses a real, production-grade issuer (<strong>Keycloak 26</strong>) backed by PostgreSQL and builds the API side.
+                        </p>
+                      </div>
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong style={{ color: 'var(--teal)' }}>Phase 2: Build &amp; Break Your Own</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
+                          Builds a tiny issuer yourself (<strong>`jwtlab` KeyStore</strong>), so you understand what Keycloak does internally and can break it safely.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="callout callout-tip">
+                      <strong>The Architectural Order:</strong> That order means you have seen the real thing first, and Phase 2 then explains how it works internally.
+                      <br />
+                      <em>Status:</em> Phase 2 is tested with 16 automated security tests passing (100%).
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 2: Phase 1 */}
+                  <section id="whw-phase-1">
+                    <h2>2. Phase 1: Real Identity Provider and a Protected API</h2>
+                    <p>
+                      <strong>What we built:</strong> <code>docker-compose.yml</code> with three services (Postgres, Keycloak and a Flask API), plus <code>.env.example</code>, <code>.gitignore</code> and a README with the Keycloak setup steps.
+                    </p>
+                    <h3>Why Each Piece Exists:</h3>
+                    <ul>
+                      <li>
+                        <strong>Keycloak:</strong> An open-source identity provider that speaks OAuth 2.0 and OpenID Connect, widely used in enterprises.
+                        It handles login, users, roles, token signing and later Google and GitHub federation.
+                      </li>
+                      <li>
+                        <strong>Postgres:</strong> Lets Keycloak&apos;s configuration survive container restarts. Dev mode defaults to an embedded database,
+                        which is fine for a quick test and less convincing as a project.
+                      </li>
+                      <li>
+                        <strong>The Flask API:</strong> The resource server. <em>It never sees passwords.</em> It only receives a token and decides whether to trust it.
+                        Keeping authentication and API separate is the core architectural idea.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 3: Safe Defaults */}
+                  <section id="whw-safe-defaults">
+                    <h2>3. Safe Defaults, on Purpose</h2>
+                    <p>
+                      Security engineering requires deliberate operational hygiene:
+                    </p>
+                    <div className="guide-table-wrap">
+                      <table className="guide-table">
+                        <thead>
+                          <tr>
+                            <th>Security Default</th>
+                            <th>Implementation</th>
+                            <th>Why It Matters</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><strong>Pinned Images</strong></td>
+                            <td><code>quay.io/keycloak/keycloak:26.0</code></td>
+                            <td>Builds are reproducible; avoids breaking changes on unexpected updates</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Localhost Binding</strong></td>
+                            <td><code>127.0.0.1:8080:8080</code></td>
+                            <td>Ports bound strictly to 127.0.0.1, preventing public LAN/WAN exposure</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Secret Isolation</strong></td>
+                            <td><code>.env</code> in <code>.gitignore</code></td>
+                            <td>Database and admin credentials never committed to source control</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Non-Root User</strong></td>
+                            <td><code>USER 10001</code> in API Dockerfile</td>
+                            <td>Mitigates container breakout risk if API process is compromised</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Development Label</strong></td>
+                            <td><code>command: start-dev</code></td>
+                            <td>Explicitly documented as dev-mode, never mistaken for production</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 4: How the API Validates a Token */}
+                  <section id="whw-api-validation">
+                    <h2>4. How the API Validates a Token (`api/app.py`)</h2>
+                    <p>
+                      Every protected API request passes through a 6-step cryptographic validation sequence:
+                    </p>
+                    <ol>
+                      <li><strong>Read Authorization Header:</strong> Read <code>Authorization: Bearer &lt;token&gt;</code>. If missing, return <code>401 Unauthorized</code>.</li>
+                      <li><strong>Extract Key ID:</strong> Read the <code>kid</code> from the unverified token header.</li>
+                      <li><strong>Fetch Public Keys:</strong> Fetch Keycloak&apos;s public keys from its JWKS URL (cached in memory via <code>PyJWKClient</code>).</li>
+                      <li><strong>Verify Signature:</strong> Verify the 2048-bit <code>RS256</code> digital signature using the public RSA key.</li>
+                      <li><strong>Enforce Claims:</strong> Check issuer (<code>iss</code>), audience (<code>aud</code>) and expiry (<code>exp</code>), and require those claims to be present.</li>
+                      <li><strong>Evaluate RBAC:</strong> Read roles from <code>realm_access.roles</code>. If the role is wrong, return <code>403 Forbidden</code>.</li>
+                    </ol>
+
+                    <div className="guide-grid-two">
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong>Why RS256, not HS256:</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          With RS256 (asymmetric), Keycloak signs with a private key and the API only needs the public key, so a compromised API cannot mint tokens. With HS256 every verifier holds the same secret that can also sign.
+                        </p>
+                      </div>
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--amber)' }}>
+                        <strong>Why an Algorithm Allow-List:</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          The API accepts only <code>RS256</code> and never believes the token&apos;s own <code>alg</code> header. Phase 2 shows what happens without it (CVE-2015-9235).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="guide-box" style={{ borderLeft: '3px solid var(--red)' }}>
+                      <strong>Why 401 vs 403:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                        <strong>401 Unauthorized:</strong> Means the server cannot trust who you are (missing, expired or forged token).
+                        <br />
+                        <strong>403 Forbidden:</strong> Means the server knows who you are, and the answer is no (insufficient role privileges).
+                      </p>
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 5: Keycloak Setup */}
+                  <section id="whw-keycloak-setup">
+                    <h2>5. The Keycloak Setup, and Why</h2>
+                    <div className="guide-table-wrap">
+                      <table className="guide-table">
+                        <thead>
+                          <tr>
+                            <th>Keycloak Configuration Step</th>
+                            <th>Why It Is Configured</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><strong>Realm `authlab`</strong></td>
+                            <td>A realm is an isolated tenant of users, roles and clients, keeping application state separated from the master admin realm.</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Roles and Two Users</strong></td>
+                            <td>Provisions a <code>viewer</code> (Alice) and an <code>admin</code> (Bob) to test 403 Forbidden vs 200 OK access control.</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Public Client `authlab-web`, PKCE S256</strong></td>
+                            <td>Browser-style clients cannot keep a client secret safe, so PKCE (Proof Key for Code Exchange) protects the code grant.</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Direct Access Grants (Lab Only)</strong></td>
+                            <td>A convenient shortcut to acquire tokens via cURL CLI during early development; the real browser code flow comes in Phase 3.</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Audience Mapper `authlab-api`</strong></td>
+                            <td>Tells Keycloak to put your API in the token&apos;s <code>aud</code> claim, preventing token substitution attacks.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 6: Gotchas */}
+                  <section id="whw-gotchas">
+                    <h2>6. Gotchas Worth Writing About</h2>
+                    <div className="callout callout-warning">
+                      <strong>Gotcha 1: Issuer vs. JWKS Hostnames (Docker Split)</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px' }}>
+                        The token&apos;s <code>iss</code> claim is <code>http://localhost:8080/realms/authlab</code> because that is the URL the browser/cURL used.
+                        However, the Flask API container fetches keys from <code>http://keycloak:8080/realms/authlab/certs</code> over the Docker internal bridge network!
+                        That is why <code>docker-compose.yml</code> has two separate settings: <code>TOKEN_ISSUER</code> and <code>JWKS_URL</code>.
+                      </p>
+                    </div>
+                    <div className="callout callout-warning">
+                      <strong>Gotcha 2: Missing Audience Mapper</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px' }}>
+                        If you forget to add the audience mapper in Keycloak, the API throws <code>jwt.exceptions.InvalidAudienceError</code>.
+                        This is not a bug — it is the audience check correctly preventing tokens meant for other clients from reaching this API!
+                      </p>
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 7: Phase 2 */}
+                  <section id="whw-phase-2">
+                    <h2>7. Phase 2: Build and Break Your Own JWT Issuer</h2>
+                    <p>
+                      <strong>What we built:</strong> The <code>jwtlab/</code> folder with <code>auth.py</code>, <code>app.py</code>, 16 tests, a README and pytest config.
+                    </p>
+                    <p>
+                      <strong>Why:</strong> Using Keycloak teaches you configuration. Building a mini issuer teaches you what is actually in a token and what a verifier must check.
+                    </p>
+                    <ul>
+                      <li>
+                        <strong>KeyStore:</strong> Holds RSA keys by <code>kid</code> and supports rotation (a new current key) and retirement (dropping an old one).
+                        Its JWKS output contains public keys only, which a test confirms by checking that no private <code>d</code> value is published.
+                      </li>
+                      <li>
+                        <strong>issue_token:</strong> Creates a token with standard claims: <code>iss</code>, <code>aud</code>, <code>sub</code>, <code>roles</code>, <code>iat</code>, <code>exp</code>, and <code>jti</code>.
+                        Passing <code>None</code> for a claim removes it, which is how the exploit test suite builds broken tokens.
+                      </li>
+                      <li>
+                        <strong>The Secure Verifier (`verify_token`):</strong> Fixes the algorithm to RS256, looks up the key by <code>kid</code>, rejects unknown keys,
+                        and checks signature, issuer, audience and expiry with required claims strictly enforced.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 8: Vulnerable Verifier */}
+                  <section id="whw-vulnerable-verifier">
+                    <h2>8. The Deliberately Vulnerable Verifier (`naive_verify_token`)</h2>
+                    <p>
+                      The naive verifier believes the token&apos;s <code>alg</code> header, demonstrating two classic cryptographic vulnerabilities:
+                    </p>
+                    <div className="guide-box" style={{ borderLeft: '3px solid var(--red)' }}>
+                      <strong>1. `alg: none` Signature Stripping:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
+                        The attacker claims the token needs no signature (<code>&quot;alg&quot;: &quot;none&quot;</code>), and the naive server accepts it without validation, granting unauthenticated admin access.
+                      </p>
+                    </div>
+                    <div className="guide-box" style={{ borderLeft: '3px solid var(--red)' }}>
+                      <strong>2. CVE-2015-9235: Public Key Confusion:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
+                        The attacker takes your public key (published in the JWKS), signs a token with HS256 using that public key as the HMAC secret, and sets the header to HS256.
+                        The naive server treats its own public key as the HMAC secret and accepts it. <em>The fix is to pin the algorithm to RS256!</em>
+                      </p>
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 9: What the Tests Prove */}
+                  <section id="whw-what-tests-prove">
+                    <h2>9. What the 16 Tests Prove</h2>
+                    <div className="guide-table-wrap">
+                      <table className="guide-table">
+                        <thead>
+                          <tr>
+                            <th>Attack Vector Tested</th>
+                            <th>Defense Verified in Code</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>Expired or missing `exp`</td>
+                            <td><code>exp</code> claim is required and strictly validated against current time</td>
+                          </tr>
+                          <tr>
+                            <td>Wrong audience or issuer</td>
+                            <td><code>aud</code> and <code>iss</code> are pinned and enforced</td>
+                          </tr>
+                          <tr>
+                            <td>Edit role without re-signing</td>
+                            <td>The digital signature covers the payload; tampering breaks math</td>
+                          </tr>
+                          <tr>
+                            <td>Sign with attacker&apos;s key</td>
+                            <td>Verify only against the issuer&apos;s authorized KeyStore keys</td>
+                          </tr>
+                          <tr>
+                            <td>Unknown `kid`</td>
+                            <td>Reject immediately, never fall back to default keys</td>
+                          </tr>
+                          <tr>
+                            <td>`alg: none` and HS256 confusion</td>
+                            <td>Fixed algorithm allow-list (<code>algorithms=[&quot;RS256&quot;]</code>)</td>
+                          </tr>
+                          <tr>
+                            <td>Key Rotation</td>
+                            <td>Old tokens work while the old key is published, and fail once retired</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="callout callout-tip">
+                      <strong>Rotation Needs an Overlap Window:</strong> If you swap keys instantly, every live token across all users breaks.
+                      Publishing both keys during the transition window ensures zero downtime.
+                    </div>
+                  </section>
+
+                  <hr className="guide-divider" />
+
+                  {/* Section 10: Interview Talking Points */}
+                  <section id="whw-interview-points">
+                    <h2>10. Interview Talking Points</h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong>1. Why RS256 Over HS256 for Distributed Systems:</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          Asymmetric cryptography keeps the signing private key strictly inside the IdP. Resource APIs only need public certificates from the JWKS. A compromise of an API server never leaks the token signing key.
+                        </p>
+                      </div>
+
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong>2. Why You Pin Algorithms (alg: none and Key Confusion):</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          Never trust client-supplied <code>alg</code> headers. Enforcing <code>algorithms=[&quot;RS256&quot;]</code> completely prevents <code>alg: none</code> signature bypass and CVE-2015-9235 public-key HMAC confusion.
+                        </p>
+                      </div>
+
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong>3. The Difference Between 401 and 403:</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          401 Unauthorized means authentication failed (cannot trust who you are). 403 Forbidden means authorization failed (identity is verified, but role permissions are insufficient).
+                        </p>
+                      </div>
+
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong>4. Why Audience and Issuer Checks Stop Token Reuse:</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          Pinning <code>aud</code> prevents token substitution across microservices (tokens minted for Service A cannot be replayed against Service B).
+                        </p>
+                      </div>
+
+                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
+                        <strong>5. Key Rotation with an Overlap Window:</strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                          Key rotation must publish both old and new public keys in JWKS simultaneously until existing tokens reach their natural expiration TTL, achieving zero downtime.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                </article>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ============================================================= */}
+        {/* TAB 3: PHASE 2 ATTACK SIMULATOR & JWT LAB                     */}
         {/* ============================================================= */}
         {activeTab === 'jwt' && (
           <section className="section" style={{ paddingTop: '16px' }}>
             <div className="container">
-              {/* Interactive Tamper Engine */}
+              {/* Interactive Attack Simulator Banner */}
               <div className="standalone-card" style={{ padding: '24px', marginBottom: '24px' }}>
-                <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>Cryptographic Attack Simulator</span>
-                <h2 style={{ fontSize: '20px', margin: '0 0 12px' }}>Interactive JWT Tampering & Defense Lab</h2>
+                <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>
+                  Phase 2 Cryptographic Exploit Engine
+                </span>
+                <h2 style={{ fontSize: '20px', margin: '0 0 12px' }}>
+                  JWT Attack &amp; Defense Simulator: Naive vs Hardened Verifier
+                </h2>
                 <p style={{ margin: '0 0 20px', fontSize: '14px', color: 'var(--muted)', lineHeight: '1.6' }}>
-                  A JSON Web Token consists of three base64url-encoded parts separated by dots: <code>Header.Payload.Signature</code>.
-                  Toggle attack scenarios below to test how the Flask API&apos;s asymmetric RSA verification stops token manipulation in its tracks!
+                  Phase 2 contrasts <strong>vulnerable implementations</strong> (<code>naive_verify_token</code>) against
+                  <strong> production hardened verifiers</strong> (<code>verify_token</code>). Click any attack exploit below to simulate
+                  the exploit and observe why naive servers get breached while hardened servers remain protected!
                 </p>
 
-                {/* Attack Toggles */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+                {/* 6 Exploits Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+                  {/* Exploit 1: alg: none */}
                   <div
-                    onClick={() => setTamperRole(!tamperRole)}
+                    onClick={() => setActiveExploit(activeExploit === 'none' ? null : 'none')}
                     className="guide-box"
                     style={{
                       cursor: 'pointer',
-                      borderLeft: `4px solid ${tamperRole ? 'var(--red)' : 'var(--line)'}`,
-                      background: tamperRole ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
+                      borderLeft: `4px solid ${activeExploit === 'none' ? 'var(--red)' : 'var(--line)'}`,
+                      background: activeExploit === 'none' ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
                       transition: 'all 0.2s ease',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ margin: 0, color: tamperRole ? 'var(--red)' : 'var(--text)' }}>
-                        1. Privilege Escalation Tamper
+                      <strong style={{ margin: 0, color: activeExploit === 'none' ? 'var(--red)' : 'var(--text)' }}>
+                        1. alg: &quot;none&quot; Signature Stripping
                       </strong>
-                      <span className="tag" style={{ font: '9px var(--mono)' }}>{tamperRole ? 'ATTACK ACTIVE' : 'NORMAL'}</span>
+                      <span className="tag" style={{ font: '9px var(--mono)' }}>{activeExploit === 'none' ? 'TRIGGERED' : 'ARM'}</span>
                     </div>
                     <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                      Attacker edits payload to inject <code>&quot;admin&quot;</code> role. Without Keycloak&apos;s RSA private key, the signature becomes invalid!
+                      Attacker sets <code>&quot;alg&quot;: &quot;none&quot;</code> and strips signature. Naive verifiers accept unsigned tokens as valid admin!
                     </p>
                   </div>
 
+                  {/* Exploit 2: CVE-2015-9235 Key Confusion */}
                   <div
-                    onClick={() => setTamperExpire(!tamperExpire)}
+                    onClick={() => setActiveExploit(activeExploit === 'hs256' ? null : 'hs256')}
                     className="guide-box"
                     style={{
                       cursor: 'pointer',
-                      borderLeft: `4px solid ${tamperExpire ? 'var(--red)' : 'var(--line)'}`,
-                      background: tamperExpire ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
+                      borderLeft: `4px solid ${activeExploit === 'hs256' ? 'var(--red)' : 'var(--line)'}`,
+                      background: activeExploit === 'hs256' ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
                       transition: 'all 0.2s ease',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ margin: 0, color: tamperExpire ? 'var(--red)' : 'var(--text)' }}>
-                        2. Expired Token Replay
+                      <strong style={{ margin: 0, color: activeExploit === 'hs256' ? 'var(--red)' : 'var(--text)' }}>
+                        2. CVE-2015-9235 (HS256 Key Confusion)
                       </strong>
-                      <span className="tag" style={{ font: '9px var(--mono)' }}>{tamperExpire ? 'ATTACK ACTIVE' : 'NORMAL'}</span>
+                      <span className="tag" style={{ font: '9px var(--mono)' }}>{activeExploit === 'hs256' ? 'TRIGGERED' : 'ARM'}</span>
                     </div>
                     <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                      Simulates replaying an expired token (<code>exp &lt; now</code>). PyJWKClient catches expired timestamps and returns 401 Unauthorized.
+                      Attacker downloads public RSA PEM key and passes it as an HMAC secret for HS256! Naive servers verify it using the public key string.
                     </p>
                   </div>
 
+                  {/* Exploit 3: Payload Tamper */}
                   <div
-                    onClick={() => setTamperIssuer(!tamperIssuer)}
+                    onClick={() => setActiveExploit(activeExploit === 'tamper' ? null : 'tamper')}
                     className="guide-box"
                     style={{
                       cursor: 'pointer',
-                      borderLeft: `4px solid ${tamperIssuer ? 'var(--red)' : 'var(--line)'}`,
-                      background: tamperIssuer ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
+                      borderLeft: `4px solid ${activeExploit === 'tamper' ? 'var(--red)' : 'var(--line)'}`,
+                      background: activeExploit === 'tamper' ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
                       transition: 'all 0.2s ease',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ margin: 0, color: tamperIssuer ? 'var(--red)' : 'var(--text)' }}>
-                        3. Rogue Issuer Spoofing
+                      <strong style={{ margin: 0, color: activeExploit === 'tamper' ? 'var(--red)' : 'var(--text)' }}>
+                        3. Payload Privilege Escalation
                       </strong>
-                      <span className="tag" style={{ font: '9px var(--mono)' }}>{tamperIssuer ? 'ATTACK ACTIVE' : 'NORMAL'}</span>
+                      <span className="tag" style={{ font: '9px var(--mono)' }}>{activeExploit === 'tamper' ? 'TRIGGERED' : 'ARM'}</span>
                     </div>
                     <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                      Token minted by a rogue authentication server (<code>iss != farm360</code>). Flask rejects untrusted issuer claims.
+                      Modifies user payload to inject <code>roles: [&quot;admin&quot;]</code> without the private RSA key. Digital signature check catches mismatch.
+                    </p>
+                  </div>
+
+                  {/* Exploit 4: Rogue Key Substitution */}
+                  <div
+                    onClick={() => setActiveExploit(activeExploit === 'rogue-key' ? null : 'rogue-key')}
+                    className="guide-box"
+                    style={{
+                      cursor: 'pointer',
+                      borderLeft: `4px solid ${activeExploit === 'rogue-key' ? 'var(--red)' : 'var(--line)'}`,
+                      background: activeExploit === 'rogue-key' ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ margin: 0, color: activeExploit === 'rogue-key' ? 'var(--red)' : 'var(--text)' }}>
+                        4. Attacker Foreign Key Substitution
+                      </strong>
+                      <span className="tag" style={{ font: '9px var(--mono)' }}>{activeExploit === 'rogue-key' ? 'TRIGGERED' : 'ARM'}</span>
+                    </div>
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                      Attacker signs token with their own RSA private key while claiming genuine kid. Server verifies against real JWKS and rejects foreign key.
+                    </p>
+                  </div>
+
+                  {/* Exploit 5: Expired Token Replay */}
+                  <div
+                    onClick={() => setActiveExploit(activeExploit === 'expired' ? null : 'expired')}
+                    className="guide-box"
+                    style={{
+                      cursor: 'pointer',
+                      borderLeft: `4px solid ${activeExploit === 'expired' ? 'var(--red)' : 'var(--line)'}`,
+                      background: activeExploit === 'expired' ? 'rgba(255, 93, 93, 0.08)' : 'rgba(15, 21, 29, 0.6)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ margin: 0, color: activeExploit === 'expired' ? 'var(--red)' : 'var(--text)' }}>
+                        5. Expired Token Replay Attack
+                      </strong>
+                      <span className="tag" style={{ font: '9px var(--mono)' }}>{activeExploit === 'expired' ? 'TRIGGERED' : 'ARM'}</span>
+                    </div>
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                      Submits an expired timestamp (<code>exp &lt; now</code>). Hardened server enforces mandatory exp validation.
+                    </p>
+                  </div>
+
+                  {/* Feature 6: KeyStore Key Rotation */}
+                  <div
+                    onClick={() => {
+                      if (!keyRotated) setKeyRotated(true)
+                      else if (!keyRetired) setKeyRetired(true)
+                      else {
+                        setKeyRotated(false)
+                        setKeyRetired(false)
+                      }
+                    }}
+                    className="guide-box"
+                    style={{
+                      cursor: 'pointer',
+                      borderLeft: `4px solid ${keyRotated ? 'var(--teal)' : 'var(--line)'}`,
+                      background: keyRotated ? 'rgba(79, 209, 197, 0.08)' : 'rgba(15, 21, 29, 0.6)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ margin: 0, color: keyRotated ? 'var(--teal)' : 'var(--text)' }}>
+                        6. Zero-Downtime Key Rotation
+                      </strong>
+                      <span className="tag" style={{ font: '9px var(--mono)' }}>
+                        {!keyRotated ? 'KEY 1 (e7b1a49f)' : !keyRetired ? 'ROTATED (8f2d9c1b)' : 'RETIRED (RESET)'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                      Click to cycle: <code>store.rotate()</code> issues fresh kid while preserving old keys in JWKS; <code>store.retire()</code> drops old keys.
                     </p>
                   </div>
                 </div>
 
-                {/* Live Color-Coded JWT String */}
-                <div style={{ marginBottom: '20px' }}>
+                {/* SIDE-BY-SIDE VERIFIER VERDICT COMPARISON */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                  {/* Naive Verifier Output */}
+                  <div className="standalone-card" style={{ padding: '16px', borderTop: '3px solid var(--red)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ color: 'var(--red)', fontSize: '13px' }}>
+                        Naive Verifier: naive_verify_token()
+                      </strong>
+                      <span className="tag" style={{ color: 'var(--red)', font: '8px var(--mono)' }}>VULNERABLE (TRUSTS ALG)</span>
+                    </div>
+                    <div style={{ font: '11px/1.5 var(--mono)', padding: '10px', background: '#090d12', borderRadius: '6px' }}>
+                      {activeExploit === 'none' && (
+                        <div style={{ color: 'var(--red)' }}>
+                          ⚠️ STATUS: EXPLOITED (200 OK){'\n'}
+                          [VULNERABILITY] alg=&quot;none&quot; accepted without signature check!{'\n'}
+                          User authorized as admin with zero authentication!
+                        </div>
+                      )}
+                      {activeExploit === 'hs256' && (
+                        <div style={{ color: 'var(--red)' }}>
+                          ⚠️ STATUS: EXPLOITED (200 OK){'\n'}
+                          [CVE-2015-9235] Public RSA PEM key treated as HMAC secret!{'\n'}
+                          Attacker successfully forged token with roles: [&quot;admin&quot;]!
+                        </div>
+                      )}
+                      {activeExploit === 'tamper' && (
+                        <div style={{ color: 'var(--red)' }}>
+                          ❌ STATUS: Signature Mismatch (InvalidSignatureError)
+                        </div>
+                      )}
+                      {activeExploit === 'expired' && (
+                        <div style={{ color: 'var(--red)' }}>
+                          ⚠️ STATUS: EXPLOITED! Naive verifier has verify_exp=False!
+                        </div>
+                      )}
+                      {activeExploit === 'rogue-key' && (
+                        <div style={{ color: 'var(--red)' }}>
+                          ❌ STATUS: Verification failed against store
+                        </div>
+                      )}
+                      {!activeExploit && (
+                        <div style={{ color: 'var(--muted)' }}>
+                          Awaiting exploit trigger. Click an attack above to contrast with hardened verifier.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Hardened Verifier Output */}
+                  <div className="standalone-card" style={{ padding: '16px', borderTop: '3px solid var(--teal)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ color: 'var(--teal)', fontSize: '13px' }}>
+                        Hardened Verifier: verify_token()
+                      </strong>
+                      <span className="tag" style={{ color: 'var(--teal)', font: '8px var(--mono)' }}>SECURE (PINNED RS256)</span>
+                    </div>
+                    <div style={{ font: '11px/1.5 var(--mono)', padding: '10px', background: '#090d12', borderRadius: '6px' }}>
+                      {activeExploit === 'none' && (
+                        <div style={{ color: 'var(--teal)' }}>
+                          🛡️ STATUS: ATTACK BLOCKED (401 Unauthorized){'\n'}
+                          [DEFENSE] jwt.exceptions.InvalidTokenError: 'none' is not an allowed algorithm.{'\n'}
+                          Strict allow-list pinned to algorithms=[&quot;RS256&quot;].
+                        </div>
+                      )}
+                      {activeExploit === 'hs256' && (
+                        <div style={{ color: 'var(--teal)' }}>
+                          🛡️ STATUS: ATTACK BLOCKED (401 Unauthorized){'\n'}
+                          [DEFENSE] Algorithm 'HS256' rejected by RS256 allow-list.{'\n'}
+                          Asymmetric key cannot be treated as HMAC secret (CVE mitigated).
+                        </div>
+                      )}
+                      {activeExploit === 'tamper' && (
+                        <div style={{ color: 'var(--teal)' }}>
+                          🛡️ STATUS: ATTACK BLOCKED (401 Unauthorized){'\n'}
+                          [DEFENSE] jwt.exceptions.InvalidSignatureError.{'\n'}
+                          Altering payload bytes broke the 2048-bit RSA digital signature.
+                        </div>
+                      )}
+                      {activeExploit === 'expired' && (
+                        <div style={{ color: 'var(--teal)' }}>
+                          🛡️ STATUS: ATTACK BLOCKED (401 Unauthorized){'\n'}
+                          [DEFENSE] jwt.exceptions.ExpiredSignatureError.{'\n'}
+                          Mandatory exp claim check prevented token replay.
+                        </div>
+                      )}
+                      {activeExploit === 'rogue-key' && (
+                        <div style={{ color: 'var(--teal)' }}>
+                          🛡️ STATUS: ATTACK BLOCKED (401 Unauthorized){'\n'}
+                          [DEFENSE] Unknown kid or foreign key rejected by KeyStore.
+                        </div>
+                      )}
+                      {!activeExploit && (
+                        <div style={{ color: 'var(--teal)' }}>
+                          ✓ Standard Token: Verified statelessly via cached JWKS public key. Status: 200 OK.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Raw Color-Coded Token Preview */}
+                <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="control-label" style={{ margin: 0 }}>Raw Serialized Bearer Token (Base64URL)</span>
-                    <span style={{ font: '10px var(--mono)', color: (tamperRole || tamperExpire || tamperIssuer) ? 'var(--red)' : 'var(--teal)' }}>
-                      {(tamperRole || tamperExpire || tamperIssuer) ? '⚠️ TAMPER DETECTED — SIGNATURE INVALID' : '✓ VALID KEYCLOAK RS256 TOKEN'}
+                    <span className="control-label" style={{ margin: 0 }}>Serialized Bearer Token (Base64URL)</span>
+                    <span style={{ font: '10px var(--mono)', color: activeExploit ? 'var(--red)' : 'var(--teal)' }}>
+                      {activeExploit ? `⚠️ EXPLOIT PAYLOAD: [${activeExploit.toUpperCase()}]` : '✓ VALID RS256 TOKEN'}
                     </span>
                   </div>
 
@@ -669,412 +1414,13 @@ export function KeycloakAuthSandbox() {
                       wordBreak: 'break-all',
                     }}
                   >
-                    <span style={{ color: '#ff5d5d' }}>eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZhcm0zNjAta2V5Y2xvYWstcnNhLWtleS0yMDI2In0</span>
+                    <span style={{ color: '#ff5d5d' }}>{btoa(JSON.stringify(tokenHeader)).replace(/=/g, '')}</span>
                     <span style={{ color: 'var(--muted)' }}>.</span>
-                    <span style={{ color: '#a78bfa' }}>
-                      {btoa(JSON.stringify(tokenPayload)).replace(/=/g, '')}
-                    </span>
+                    <span style={{ color: '#a78bfa' }}>{btoa(JSON.stringify(tokenPayload)).replace(/=/g, '')}</span>
                     <span style={{ color: 'var(--muted)' }}>.</span>
-                    <span style={{ color: (tamperRole || tamperExpire || tamperIssuer) ? 'var(--red)' : '#38bdf8' }}>
-                      {tokenSignature}
-                    </span>
+                    <span style={{ color: activeExploit ? 'var(--red)' : '#38bdf8' }}>{tokenSignature}</span>
                   </div>
                 </div>
-
-                {/* 3-Column Decoded Inspector */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-                  {/* Header */}
-                  <div className="standalone-card" style={{ padding: '16px', borderTop: '3px solid #ff5d5d' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <strong style={{ color: '#ff5d5d', fontSize: '13px' }}>1. Header (JOSE)</strong>
-                      <span className="tag" style={{ font: '8px var(--mono)' }}>Algorithm & Key ID</span>
-                    </div>
-                    <pre style={{ margin: 0, font: '11px var(--mono)', color: 'var(--text)', background: 'transparent' }}>
-                      {JSON.stringify(tokenHeader, null, 2)}
-                    </pre>
-                    <small style={{ display: 'block', marginTop: '10px', color: 'var(--muted)', fontSize: '10.5px' }}>
-                      The <code>kid</code> matches the public key in Keycloak&apos;s JWKS endpoint.
-                    </small>
-                  </div>
-
-                  {/* Payload */}
-                  <div className="standalone-card" style={{ padding: '16px', borderTop: '3px solid #a78bfa' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <strong style={{ color: '#a78bfa', fontSize: '13px' }}>2. Payload (Claims)</strong>
-                      <span className="tag" style={{ font: '8px var(--mono)' }}>Identity & Roles</span>
-                    </div>
-                    <pre style={{ margin: 0, font: '11px var(--mono)', color: 'var(--text)', background: 'transparent', maxHeight: '220px', overflowY: 'auto' }}>
-                      {JSON.stringify(tokenPayload, null, 2)}
-                    </pre>
-                    <small style={{ display: 'block', marginTop: '10px', color: 'var(--muted)', fontSize: '10.5px' }}>
-                      Resource servers extract <code>realm_access.roles</code> to enforce RBAC permissions.
-                    </small>
-                  </div>
-
-                  {/* Signature */}
-                  <div className="standalone-card" style={{ padding: '16px', borderTop: '3px solid #38bdf8' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <strong style={{ color: '#38bdf8', fontSize: '13px' }}>3. Signature (RS256)</strong>
-                      <span className="tag" style={{ font: '8px var(--mono)' }}>Asymmetric Cryptography</span>
-                    </div>
-                    <div style={{ padding: '10px', background: 'rgba(56, 189, 248, 0.05)', borderRadius: '6px', fontSize: '11px', color: 'var(--text)' }}>
-                      <code style={{ color: '#38bdf8', display: 'block', marginBottom: '6px' }}>
-                        RSASHA256({'\n'}
-                        &nbsp;&nbsp;base64Url(header) + &quot;.&quot; +{'\n'}
-                        &nbsp;&nbsp;base64Url(payload),{'\n'}
-                        &nbsp;&nbsp;Keycloak_Private_RSA_Key{'\n'}
-                        )
-                      </code>
-                    </div>
-                    <small style={{ display: 'block', marginTop: '10px', color: 'var(--muted)', fontSize: '10.5px' }}>
-                      Only Keycloak possesses the private key. Changing a single character in the payload invalidates this signature!
-                    </small>
-                  </div>
-                </div>
-              </div>
-
-              {/* Symmetric vs Asymmetric Architecture Comparison */}
-              <div className="standalone-card" style={{ padding: '24px' }}>
-                <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>Architectural Comparison</span>
-                <h3 style={{ margin: '0 0 16px', fontSize: '18px' }}>Why Enterprise Systems Choose RS256 over HS256</h3>
-
-                <div className="guide-table-wrap" style={{ margin: 0 }}>
-                  <table className="guide-table">
-                    <thead>
-                      <tr>
-                        <th>Architectural Dimension</th>
-                        <th>Symmetric (HS256)</th>
-                        <th>Asymmetric (RS256 with Keycloak)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>Secret Sharing</strong></td>
-                        <td style={{ color: 'var(--red)' }}>Shared Secret must be distributed to every single microservice</td>
-                        <td style={{ color: 'var(--teal)' }}>Private Key stays strictly inside Keycloak; public certs distributed via JWKS</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Blast Radius</strong></td>
-                        <td style={{ color: 'var(--red)' }}>If 1 service leaks the secret, attacker can forge tokens for all services</td>
-                        <td style={{ color: 'var(--teal)' }}>Compromise of a resource server leaks only public keys (zero forgery risk)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Key Rotation</strong></td>
-                        <td style={{ color: 'var(--amber)' }}>Requires coordinated redeployment of all microservices simultaneously</td>
-                        <td style={{ color: 'var(--teal)' }}>Zero-downtime rotation: Keycloak publishes new key in JWKS with new <code>kid</code></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Third-Party Integration</strong></td>
-                        <td style={{ color: 'var(--red)' }}>Impossible: You cannot give partners your secret signing key</td>
-                        <td style={{ color: 'var(--teal)' }}>Seamless: Third parties verify tokens against public <code>/certs</code> endpoint</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ============================================================= */}
-        {/* TAB 3: COMPLETE TECHNICAL GUIDE                               */}
-        {/* ============================================================= */}
-        {activeTab === 'guide' && (
-          <section className="section" style={{ paddingTop: '16px' }}>
-            <div className="container">
-              <div className="standalone-guide-layout" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px' }}>
-                {/* Sticky TOC Sidebar */}
-                <aside className="guide-toc-sidebar" style={{ position: 'sticky', top: '24px', height: 'fit-content' }}>
-                  <div className="standalone-card" style={{ padding: '16px' }}>
-                    <span className="control-label" style={{ display: 'block', marginBottom: '10px' }}>Table of Contents</span>
-                    <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <a href="#sec-1" className="toc-link">1. IAM in Distributed Systems</a>
-                      <a href="#sec-2" className="toc-link">2. OAuth 2.0 vs OpenID Connect</a>
-                      <a href="#sec-3" className="toc-link">3. Anatomy of a JSON Web Token</a>
-                      <a href="#sec-4" className="toc-link">4. Symmetric vs Asymmetric Crypto</a>
-                      <a href="#sec-5" className="toc-link">5. The JWKS Protocol at Scale</a>
-                      <a href="#sec-6" className="toc-link">6. Flask & PyJWKClient Implementation</a>
-                      <a href="#sec-7" className="toc-link">7. Keycloak Realms, Clients & Roles</a>
-                      <a href="#sec-8" className="toc-link">8. Docker Compose Architecture</a>
-                      <a href="#sec-9" className="toc-link">9. Token Lifecycles & Refresh</a>
-                      <a href="#sec-10" className="toc-link">10. Production Security Hardening</a>
-                    </nav>
-                  </div>
-                </aside>
-
-                {/* Article Content */}
-                <article className="guide-article-body">
-                  <section id="sec-1">
-                    <h2>1. The Challenge of Identity & Access Management (IAM)</h2>
-                    <p>
-                      In monolithic web applications, authentication was historically simple: a user submitted credentials,
-                      the application verified the password hash in a database, created a session in Redis or server memory,
-                      and returned a stateful cookie.
-                    </p>
-                    <p>
-                      However, in distributed microservice architectures, this model collapses. If 50 microservices must handle
-                      user requests, querying a centralized session database for every single HTTP request creates an untenable
-                      bottleneck, single point of failure (SPOF), and high inter-service latency.
-                    </p>
-                    <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                      <strong>The Solution: Decentralized Stateless Verification</strong>
-                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted)' }}>
-                        Centralize <em>authentication</em> in a dedicated Identity Provider (Keycloak), while decentralizing
-                        <em>authorization verification</em> using cryptographically signed, tamper-proof JSON Web Tokens (JWT).
-                      </p>
-                    </div>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-2">
-                    <h2>2. OAuth 2.0 vs OpenID Connect (OIDC) Demystified</h2>
-                    <p>
-                      Many developers conflate OAuth 2.0 and OpenID Connect. While closely related, they solve two fundamentally different problems:
-                    </p>
-                    <ul>
-                      <li>
-                        <strong>OAuth 2.0 (Authorization Framework):</strong> Designed to grant delegated access to resources without sharing credentials
-                        (e.g., &quot;Allow Service A to read photos from Service B&quot;). It issues an <em>Access Token</em>, which is an opaque or structured
-                        bearer token meant for the API.
-                      </li>
-                      <li>
-                        <strong>OpenID Connect (Authentication Layer):</strong> An identity layer built directly on top of OAuth 2.0. It introduces the
-                        <em>ID Token</em> (always a JWT) and the <code>/userinfo</code> endpoint to answer the question: <em>&quot;Who is the user?&quot;</em>
-                      </li>
-                    </ul>
-
-                    <div className="ascii-diagram-card">
-                      <span className="term-faint">OIDC PROTOCOL STACK</span>
-                      <pre>{`+-------------------------------------------------------------+
-|         OpenID Connect 1.0 (Identity: ID Token / UserInfo)  |
-+-------------------------------------------------------------+
-|           OAuth 2.0 Framework (Access Tokens & Scopes)       |
-+-------------------------------------------------------------+
-|    JSON Web Token (JWT)  |  JSON Web Key Sets (JWKS)        |
-+-------------------------------------------------------------+
-|                    TLS / HTTPS Transport                    |
-+-------------------------------------------------------------+`}</pre>
-                    </div>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-3">
-                    <h2>3. Anatomy of a JSON Web Token (JWT)</h2>
-                    <p>
-                      A JWT is a compact, URL-safe means of representing claims between two parties. It is composed of three parts
-                      concatenated by dots (<code>.</code>):
-                    </p>
-                    <ol>
-                      <li>
-                        <strong>Header:</strong> Specifies the cryptographic algorithm (e.g. <code>RS256</code>) and the Key ID (<code>kid</code>)
-                        used to locate the public certificate.
-                      </li>
-                      <li>
-                        <strong>Payload:</strong> Contains identity claims such as <code>iss</code> (Issuer), <code>sub</code> (Subject / User ID),
-                        <code>aud</code> (Audience), <code>exp</code> (Expiration), and application roles (<code>realm_access.roles</code>).
-                      </li>
-                      <li>
-                        <strong>Signature:</strong> A digital signature produced by encrypting the SHA-256 hash of <code>Header + &quot;.&quot; + Payload</code>
-                        using Keycloak&apos;s private RSA key.
-                      </li>
-                    </ol>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-4">
-                    <h2>4. Symmetric (HS256) vs Asymmetric (RS256) Cryptography</h2>
-                    <p>
-                      A critical design choice in microservice security is the choice of cryptographic signing algorithm:
-                    </p>
-                    <div className="guide-grid-two">
-                      <div className="guide-box" style={{ borderLeft: '3px solid var(--amber)' }}>
-                        <strong>HS256 (HMAC with SHA-256)</strong>
-                        <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
-                          Uses a single symmetric secret key for both signing and verification. Every backend API service must have
-                          the secret key. If an attacker breaches one minor service and dumps its environment variables, they can forge
-                          administrator tokens for the entire platform!
-                        </p>
-                      </div>
-                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                        <strong>RS256 (RSA Signature with SHA-256)</strong>
-                        <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
-                          Uses an asymmetric keypair. Keycloak retains the 2048-bit Private Key to sign tokens. All microservices only
-                          hold the Public Certificate to verify signatures. Even if all 50 microservices are completely compromised,
-                          an attacker cannot forge a valid token!
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-5">
-                    <h2>5. The JWKS Protocol: Stateless Verification at Scale</h2>
-                    <p>
-                      How do microservices acquire Keycloak&apos;s public keys without manual configuration file sharing?
-                      Via the <strong>JSON Web Key Set (JWKS)</strong> specification (RFC 7517).
-                    </p>
-                    <p>
-                      Keycloak automatically exposes its active public keys at a standardized endpoint:
-                      <br />
-                      <code>GET /realms/farm360/protocol/openid-connect/certs</code>
-                    </p>
-                    <p>
-                      When a request hits the Flask Resource API, the <code>PyJWKClient</code> checks the token&apos;s <code>kid</code> header.
-                      If the key is already in memory, it verifies the signature locally in microseconds. If the key is new, it fetches
-                      the JWKS document over HTTP, caches it, and verifies. This achieves completely stateless horizontal scalability!
-                    </p>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-6">
-                    <h2>6. Flask & PyJWKClient Implementation Pattern</h2>
-                    <p>
-                      In our repository, the Flask API uses a clean Python decorator (<code>@require_roles</code>) to enforce both
-                      authentication and role authorization:
-                    </p>
-
-                    <div className="code-block">
-                      <pre>{`def require_roles(*allowed_roles):
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return jsonify({"error": "Missing Bearer token"}), 401
-
-            token = auth_header.split(" ")[1]
-            try:
-                # 1. Fetch public signing key from cached JWKS
-                signing_key = _jwks_client.get_signing_key_from_jwt(token)
-                
-                # 2. Asymmetrically verify RS256 signature, issuer, and audience
-                payload = jwt.decode(
-                    token,
-                    signing_key.key,
-                    algorithms=["RS256"],
-                    issuer="http://localhost:8080/realms/farm360",
-                    audience="farm360-api",
-                )
-            except jwt.ExpiredSignatureError:
-                return jsonify({"error": "Token expired"}), 401
-            except jwt.InvalidTokenError as e:
-                return jsonify({"error": f"Invalid token: {e}"}), 401
-
-            # 3. RBAC Role Evaluation
-            user_roles = set(payload.get("realm_access", {}).get("roles", []))
-            if allowed_roles and not (user_roles & set(allowed_roles)):
-                return jsonify({"error": "Forbidden: Insufficient privileges"}), 403
-
-            g.current_user = payload
-            return fn(*args, **kwargs)
-        return wrapper
-    return decorator`}</pre>
-                    </div>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-7">
-                    <h2>7. Keycloak Realms, Clients, Roles & Groups</h2>
-                    <p>
-                      Keycloak models enterprise multi-tenancy and permissions with four core abstractions:
-                    </p>
-                    <ul>
-                      <li>
-                        <strong>Realm:</strong> An isolated security domain containing users, credentials, roles, and clients. Our application uses the
-                        <code>farm360</code> realm, completely separated from the <code>master</code> administrative realm.
-                      </li>
-                      <li>
-                        <strong>Clients:</strong> Applications requesting authentication. <code>farm360-web</code> is configured as a public OIDC client
-                        supporting both Authorization Code Flow (browser) and Direct Access Grants (CLI/automation).
-                      </li>
-                      <li>
-                        <strong>Realm Roles:</strong> Global permission tags such as <code>farmer</code>, <code>service_provider</code>, and <code>admin</code>.
-                      </li>
-                      <li>
-                        <strong>Groups:</strong> Organizational collections of users (e.g. <code>Farmers</code> group maps directly to the <code>farmer</code> role),
-                        enabling bulk user onboarding.
-                      </li>
-                    </ul>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-8">
-                    <h2>8. Docker Compose Multi-Container Orchestration</h2>
-                    <p>
-                      The repository provides an automated local development lab orchestrated via Docker Compose:
-                    </p>
-                    <div className="ascii-diagram-card">
-                      <span className="term-faint">DOCKER CONTAINER TOPOLOGY</span>
-                      <pre>{`+-------------------+      +-------------------+      +-------------------+
-|  Nginx Frontend   |      |   Keycloak 26.0   |      |  PostgreSQL 16    |
-|   (Port 3000)     |      |    (Port 8080)    |      |    (Port 5432)    |
-+---------+---------+      +---------+---------+      +---------+---------+
-          |                          |                          |
-          |       OAuth Code Flow    |      JDBC Connection     |
-          +------------------------->+<-------------------------+
-          |                          |
-          | Bearer Token API Calls   | JWKS Public Cert Sync
-          v                          v
-+------------------------------------+
-|       Flask Resource API (Port 5001 / Internal :5000)        |
-+--------------------------------------------------------------+`}</pre>
-                    </div>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-9">
-                    <h2>9. Token Lifecycles, Expiration, and Refresh Rotation</h2>
-                    <p>
-                      Security requires balancing convenience against exposure risk:
-                    </p>
-                    <ul>
-                      <li>
-                        <strong>Short-Lived Access Tokens:</strong> Configured for 5 to 15 minutes. If an access token is intercepted, the attacker&apos;s
-                        window of opportunity is strictly bounded.
-                      </li>
-                      <li>
-                        <strong>Refresh Tokens:</strong> Long-lived credentials stored in <code>HttpOnly</code>, <code>Secure</code> cookies. When the access token expires,
-                        the client sends the refresh token to <code>POST /protocol/openid-connect/token</code> to acquire a fresh token pair.
-                      </li>
-                      <li>
-                        <strong>Refresh Token Rotation:</strong> Keycloak issues a new refresh token with each refresh request and invalidates the previous one.
-                        If an attacker attempts to reuse an old refresh token, Keycloak detects token theft and invalidates the entire session family!
-                      </li>
-                    </ul>
-                  </section>
-
-                  <hr className="guide-divider" />
-
-                  <section id="sec-10">
-                    <h2>10. Enterprise Security Hardening & Zero-Trust Best Practices</h2>
-                    <p>
-                      Key security guardrails implemented in this project:
-                    </p>
-                    <div className="guide-grid-two">
-                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                        <strong>1. Strict Audience Validation</strong>
-                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                          Tokens issued for <code>Client A</code> cannot be presented to <code>API B</code>. The resource server rejects tokens whose <code>aud</code> claim
-                          does not match <code>farm360-api</code>.
-                        </p>
-                      </div>
-                      <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                        <strong>2. Localhost Network Isolation</strong>
-                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                          Docker Compose binds service ports strictly to <code>127.0.0.1</code>, preventing public interface exposure during local development.
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-                </article>
               </div>
             </div>
           </section>
@@ -1089,47 +1435,197 @@ export function KeycloakAuthSandbox() {
               <div className="standalone-card" style={{ padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
                   <div>
-                    <span className="control-label" style={{ display: 'block', marginBottom: '4px' }}>Production Artifacts</span>
-                    <h2 style={{ fontSize: '20px', margin: 0 }}>Tested Configuration & Code Blueprints</h2>
+                    <span className="control-label" style={{ display: 'block', marginBottom: '4px' }}>Tested Artifacts (Phase 1 &amp; Phase 2)</span>
+                    <h2 style={{ fontSize: '20px', margin: 0 }}>Infrastructure &amp; Security Test Configurations</h2>
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <button
                       type="button"
-                      className={`button ${activeConfig === 'docker-compose' ? 'primary' : ''}`}
-                      onClick={() => setActiveConfig('docker-compose')}
+                      className={`button ${activeConfig === 'phase2-auth' ? 'primary' : ''}`}
+                      onClick={() => setActiveConfig('phase2-auth')}
                     >
-                      docker-compose.yml
+                      phase-2/jwtlab/auth.py
                     </button>
                     <button
                       type="button"
-                      className={`button ${activeConfig === 'flask-api' ? 'primary' : ''}`}
-                      onClick={() => setActiveConfig('flask-api')}
+                      className={`button ${activeConfig === 'phase2-tests' ? 'primary' : ''}`}
+                      onClick={() => setActiveConfig('phase2-tests')}
                     >
-                      api/app.py
+                      test_jwt_attacks.py
                     </button>
                     <button
                       type="button"
-                      className={`button ${activeConfig === 'demo-script' ? 'primary' : ''}`}
-                      onClick={() => setActiveConfig('demo-script')}
+                      className={`button ${activeConfig === 'phase1-compose' ? 'primary' : ''}`}
+                      onClick={() => setActiveConfig('phase1-compose')}
                     >
-                      demo_auth.sh
+                      phase-1/docker-compose.yml
                     </button>
                     <button
                       type="button"
-                      className={`button ${activeConfig === 'env' ? 'primary' : ''}`}
-                      onClick={() => setActiveConfig('env')}
+                      className={`button ${activeConfig === 'phase1-api' ? 'primary' : ''}`}
+                      onClick={() => setActiveConfig('phase1-api')}
                     >
-                      .env.example
+                      phase-1/api/app.py
+                    </button>
+                    <button
+                      type="button"
+                      className={`button ${activeConfig === 'phase2-compose' ? 'primary' : ''}`}
+                      onClick={() => setActiveConfig('phase2-compose')}
+                    >
+                      phase-2/docker-compose.yml
                     </button>
                   </div>
                 </div>
 
-                {/* Config Display */}
-                {activeConfig === 'docker-compose' && (
+                {/* Config Code Viewers */}
+                {activeConfig === 'phase2-auth' && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span className="term-faint">docker-compose.yml</span>
+                      <span className="term-faint">phase-2/jwtlab/auth.py (KeyStore &amp; Naive vs Secure Verifier)</span>
+                      <button
+                        type="button"
+                        className="button"
+                        style={{ padding: '4px 10px', fontSize: '11px' }}
+                        onClick={() => copyToClipboard(`class KeyStore:
+    def __init__(self):
+        self.keys = {}
+        self.current = None
+        self.rotate()
+
+    def rotate(self):
+        kid = uuid.uuid4().hex[:8]
+        self.keys[kid] = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.current = kid
+        return kid
+
+    def retire(self, kid):
+        self.keys.pop(kid, None)
+
+    def public_key(self, kid):
+        return self.keys[kid].public_key() if kid in self.keys else None
+
+    def jwks(self):
+        out = []
+        for kid in self.keys:
+            jwk = jwt.algorithms.RSAAlgorithm.to_jwk(self.public_key(kid), as_dict=True)
+            out.append({**jwk, "kid": kid, "use": "sig", "alg": "RS256"})
+        return {"keys": out}
+
+def verify_token(token, store):
+    """Secure verifier with strict RS256 pinning."""
+    header = jwt.get_unverified_header(token)
+    key = store.public_key(header.get("kid"))
+    if key is None:
+        raise jwt.InvalidTokenError("unknown kid")
+    return jwt.decode(
+        token, key,
+        algorithms=["RS256"],
+        issuer="http://localhost:5001", audience="authlab-api",
+        options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+    )`, 'auth-py')}
+                      >
+                        {copiedCode === 'auth-py' ? '✓ Copied' : 'Copy auth.py'}
+                      </button>
+                    </div>
+                    <div className="code-block" style={{ margin: 0 }}>
+                      <pre>{`class KeyStore:
+    """Holds RSA signing keys by kid. Supports zero-downtime rotation and retirement."""
+    def __init__(self):
+        self.keys = {}
+        self.current = None
+        self.rotate()
+
+    def rotate(self):
+        kid = uuid.uuid4().hex[:8]
+        self.keys[kid] = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.current = kid
+        return kid
+
+    def retire(self, kid):
+        self.keys.pop(kid, None)
+
+    def public_key(self, kid):
+        return self.keys[kid].public_key() if kid in self.keys else None
+
+    def jwks(self):
+        out = []
+        for kid in self.keys:
+            jwk = jwt.algorithms.RSAAlgorithm.to_jwk(self.public_key(kid), as_dict=True)
+            out.append({**jwk, "kid": kid, "use": "sig", "alg": "RS256"})
+        return {"keys": out}
+
+def verify_token(token, store):
+    """Secure verifier with strict RS256 pinning."""
+    header = jwt.get_unverified_header(token)
+    key = store.public_key(header.get("kid"))
+    if key is None:
+        raise jwt.InvalidTokenError("unknown kid")
+    return jwt.decode(
+        token, key,
+        algorithms=["RS256"],
+        issuer="http://localhost:5001", audience="authlab-api",
+        options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+    )`}</pre>
+                    </div>
+                  </div>
+                )}
+
+                {activeConfig === 'phase2-tests' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span className="term-faint">phase-2/jwtlab/tests/test_jwt_attacks.py (16 Pytest Exploit Suite)</span>
+                      <button
+                        type="button"
+                        className="button"
+                        style={{ padding: '4px 10px', fontSize: '11px' }}
+                        onClick={() => copyToClipboard(`def test_alg_none_rejected_by_secure_verifier_but_fooled_naive(store):
+    token = forge({"alg": "none", "typ": "JWT", "kid": store.current}, admin_claims())
+    with pytest.raises(jwt.InvalidTokenError):
+        verify_token(token, store)
+    assert naive_verify_token(token, store)["roles"] == ["admin"]      # exploit works on naive
+
+def test_hs256_key_confusion_rejected_by_secure_verifier_but_fooled_naive(store):
+    token = forge({"alg": "HS256", "typ": "JWT", "kid": store.current}, admin_claims(),
+                  secret=store.public_pem(store.current))
+    with pytest.raises(jwt.InvalidTokenError):
+        verify_token(token, store)
+    assert naive_verify_token(token, store)["roles"] == ["admin"]      # exploit works on naive`, 'tests')}
+                      >
+                        {copiedCode === 'tests' ? '✓ Copied' : 'Copy test_jwt_attacks.py'}
+                      </button>
+                    </div>
+                    <div className="code-block" style={{ margin: 0 }}>
+                      <pre>{`def test_alg_none_rejected_by_secure_verifier_but_fooled_naive(store):
+    token = forge({"alg": "none", "typ": "JWT", "kid": store.current}, admin_claims())
+    with pytest.raises(jwt.InvalidTokenError):
+        verify_token(token, store)
+    assert naive_verify_token(token, store)["roles"] == ["admin"]      # exploit works on naive
+
+def test_hs256_key_confusion_rejected_by_secure_verifier_but_fooled_naive(store):
+    token = forge({"alg": "HS256", "typ": "JWT", "kid": store.current}, admin_claims(),
+                  secret=store.public_pem(store.current))
+    with pytest.raises(jwt.InvalidTokenError):
+        verify_token(token, store)
+    assert naive_verify_token(token, store)["roles"] == ["admin"]      # exploit works on naive
+
+def test_rotation_old_tokens_valid_until_key_retired(store):
+    old_kid = store.current
+    old_token = issue_token(store, "alice", ["viewer"])
+    store.rotate()
+    assert verify_token(old_token, store)["sub"] == "alice"            # old key still published
+    assert len(store.jwks()["keys"]) == 2
+    store.retire(old_kid)
+    with pytest.raises(jwt.InvalidTokenError):
+        verify_token(old_token, store)`}</pre>
+                    </div>
+                  </div>
+                )}
+
+                {activeConfig === 'phase1-compose' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span className="term-faint">phase-1/docker-compose.yml</span>
                       <button
                         type="button"
                         className="button"
@@ -1143,57 +1639,21 @@ export function KeycloakAuthSandbox() {
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: start-dev
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: \${POSTGRES_PASSWORD}
-      KC_BOOTSTRAP_ADMIN_USERNAME: \${KC_ADMIN_USER}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: \${KC_ADMIN_PASSWORD}
     ports:
       - "127.0.0.1:8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   api:
     build: ./api
-    volumes:
-      - ./api/app.py:/app/app.py:ro
-    environment:
-      TOKEN_ISSUER: http://localhost:8080/realms/farm360
-      JWKS_URL: http://keycloak:8080/realms/farm360/protocol/openid-connect/certs
-      API_AUDIENCE: farm360-api
-      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
-      KEYCLOAK_REALM: farm360
     ports:
       - "127.0.0.1:5001:5000"
-    depends_on:
-      - keycloak
-
   frontend:
     image: nginx:alpine
-    volumes:
-      - ./frontend:/usr/share/nginx/html:ro
     ports:
-      - "127.0.0.1:3000:80"
-    depends_on:
-      - api
-      - keycloak
-
-volumes:
-  pgdata:`, 'compose')}
+      - "127.0.0.1:3000:80"`, 'p1-compose')}
                       >
-                        {copiedCode === 'compose' ? '✓ Copied' : 'Copy docker-compose.yml'}
+                        {copiedCode === 'p1-compose' ? '✓ Copied' : 'Copy Compose'}
                       </button>
                     </div>
                     <div className="code-block" style={{ margin: 0 }}>
@@ -1206,254 +1666,25 @@ volumes:
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: start-dev
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: \${POSTGRES_PASSWORD}
-      KC_BOOTSTRAP_ADMIN_USERNAME: \${KC_ADMIN_USER}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: \${KC_ADMIN_PASSWORD}
     ports:
       - "127.0.0.1:8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   api:
     build: ./api
-    volumes:
-      - ./api/app.py:/app/app.py:ro
     environment:
-      TOKEN_ISSUER: http://localhost:8080/realms/farm360
-      JWKS_URL: http://keycloak:8080/realms/farm360/protocol/openid-connect/certs
-      API_AUDIENCE: farm360-api
-      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
-      KEYCLOAK_REALM: farm360
+      TOKEN_ISSUER: http://localhost:8080/realms/authlab
+      JWKS_URL: http://keycloak:8080/realms/authlab/protocol/openid-connect/certs
     ports:
       - "127.0.0.1:5001:5000"
-    depends_on:
-      - keycloak
 
   frontend:
     image: nginx:alpine
-    volumes:
-      - ./frontend:/usr/share/nginx/html:ro
     ports:
-      - "127.0.0.1:3000:80"
-    depends_on:
-      - api
-      - keycloak
-
-volumes:
-  pgdata:`}</pre>
-                    </div>
-                  </div>
-                )}
-
-                {activeConfig === 'flask-api' && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span className="term-faint">api/app.py (PyJWKClient RS256 Verification & RBAC)</span>
-                      <button
-                        type="button"
-                        className="button"
-                        style={{ padding: '4px 10px', fontSize: '11px' }}
-                        onClick={() => copyToClipboard(`import os
-from functools import wraps
-import jwt
-from flask import Flask, g, jsonify, request
-from jwt import PyJWKClient
-
-app = Flask(__name__)
-JWKS_URL = os.environ.get("JWKS_URL", "http://keycloak:8080/realms/farm360/protocol/openid-connect/certs")
-ISSUER = os.environ.get("TOKEN_ISSUER", "http://localhost:8080/realms/farm360")
-AUDIENCE = os.environ.get("API_AUDIENCE", "farm360-api")
-
-_jwks_client = PyJWKClient(JWKS_URL, cache_keys=True)
-
-def require_roles(*allowed_roles):
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return jsonify({"error": "Missing or malformed Authorization header"}), 401
-
-            token = auth_header.split(" ")[1]
-            try:
-                signing_key = _jwks_client.get_signing_key_from_jwt(token)
-                payload = jwt.decode(
-                    token,
-                    signing_key.key,
-                    algorithms=["RS256"],
-                    issuer=ISSUER,
-                    audience=AUDIENCE,
-                )
-            except jwt.ExpiredSignatureError:
-                return jsonify({"error": "Token has expired"}), 401
-            except jwt.InvalidTokenError as e:
-                return jsonify({"error": f"Invalid token: {e}"}), 401
-
-            user_roles = set(payload.get("realm_access", {}).get("roles", []))
-            if allowed_roles and not (user_roles & set(allowed_roles)):
-                return jsonify({"error": "Forbidden: Insufficient privileges"}), 403
-
-            g.current_user = payload
-            return fn(*args, **kwargs)
-        return wrapper
-    return decorator`, 'flask')}
-                      >
-                        {copiedCode === 'flask' ? '✓ Copied' : 'Copy api/app.py'}
-                      </button>
-                    </div>
-                    <div className="code-block" style={{ margin: 0 }}>
-                      <pre>{`import os
-from functools import wraps
-import jwt
-from flask import Flask, g, jsonify, request
-from jwt import PyJWKClient
-
-app = Flask(__name__)
-JWKS_URL = os.environ.get("JWKS_URL", "http://keycloak:8080/realms/farm360/protocol/openid-connect/certs")
-ISSUER = os.environ.get("TOKEN_ISSUER", "http://localhost:8080/realms/farm360")
-AUDIENCE = os.environ.get("API_AUDIENCE", "farm360-api")
-
-# Stateless public key client with automatic caching
-_jwks_client = PyJWKClient(JWKS_URL, cache_keys=True)
-
-def require_roles(*allowed_roles):
-    """Decorator enforcing RS256 token verification + Role-Based Access Control."""
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return jsonify({"error": "Missing or malformed Authorization header"}), 401
-
-            token = auth_header.split(" ")[1]
-            try:
-                signing_key = _jwks_client.get_signing_key_from_jwt(token)
-                payload = jwt.decode(
-                    token,
-                    signing_key.key,
-                    algorithms=["RS256"],
-                    issuer=ISSUER,
-                    audience=AUDIENCE,
-                )
-            except jwt.ExpiredSignatureError:
-                return jsonify({"error": "Token has expired"}), 401
-            except jwt.InvalidTokenError as e:
-                return jsonify({"error": f"Invalid token: {e}"}), 401
-
-            user_roles = set(payload.get("realm_access", {}).get("roles", []))
-            if allowed_roles and not (user_roles & set(allowed_roles)):
-                return jsonify({"error": "Forbidden: Insufficient privileges"}), 403
-
-            g.current_user = payload
-            return fn(*args, **kwargs)
-        return wrapper
-    return decorator`}</pre>
-                    </div>
-                  </div>
-                )}
-
-                {activeConfig === 'demo-script' && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span className="term-faint">demo_auth.sh (CLI cURL OAuth Test Script)</span>
-                      <button
-                        type="button"
-                        className="button"
-                        style={{ padding: '4px 10px', fontSize: '11px' }}
-                        onClick={() => copyToClipboard(`#!/usr/bin/env bash
-set -e
-
-KEYCLOAK_URL="http://localhost:8080"
-API_URL="http://localhost:5001"
-REALM="farm360"
-CLIENT_ID="farm360-web"
-
-echo "=== 1. Requesting Token for Ramesh (Farmer) ==="
-RAMESH_RESP=$(curl -s -X POST "\${KEYCLOAK_URL}/realms/\${REALM}/protocol/openid-connect/token" \\
-  -d grant_type=password \\
-  -d client_id="\${CLIENT_ID}" \\
-  -d username=ramesh \\
-  -d password=ramesh123)
-
-RAMESH_TOKEN=$(echo "$RAMESH_RESP" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("access_token", ""))')
-
-echo "=== 2. Ramesh accesses /api/crops (Expect 200 OK) ==="
-curl -s -i -H "Authorization: Bearer $RAMESH_TOKEN" "\${API_URL}/api/crops" | head -n 7
-
-echo "=== 3. Ramesh accesses /api/admin/users (Expect 403 Forbidden) ==="
-curl -s -i -H "Authorization: Bearer $RAMESH_TOKEN" "\${API_URL}/api/admin/users" | head -n 7`, 'demo')}
-                      >
-                        {copiedCode === 'demo' ? '✓ Copied' : 'Copy demo_auth.sh'}
-                      </button>
-                    </div>
-                    <div className="code-block" style={{ margin: 0 }}>
-                      <pre>{`#!/usr/bin/env bash
-set -e
-
-KEYCLOAK_URL="http://localhost:8080"
-API_URL="http://localhost:5001"
-REALM="farm360"
-CLIENT_ID="farm360-web"
-
-echo "=== 1. Requesting Token for Ramesh (Farmer) ==="
-RAMESH_RESP=$(curl -s -X POST "\${KEYCLOAK_URL}/realms/\${REALM}/protocol/openid-connect/token" \\
-  -d grant_type=password \\
-  -d client_id="\${CLIENT_ID}" \\
-  -d username=ramesh \\
-  -d password=ramesh123)
-
-RAMESH_TOKEN=$(echo "$RAMESH_RESP" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("access_token", ""))')
-
-echo "=== 2. Ramesh accesses /api/crops (Expect 200 OK) ==="
-curl -s -i -H "Authorization: Bearer $RAMESH_TOKEN" "\${API_URL}/api/crops" | head -n 7
-
-echo "=== 3. Ramesh accesses /api/admin/users (Expect 403 Forbidden) ==="
-curl -s -i -H "Authorization: Bearer $RAMESH_TOKEN" "\${API_URL}/api/admin/users" | head -n 7`}</pre>
-                    </div>
-                  </div>
-                )}
-
-                {activeConfig === 'env' && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span className="term-faint">.env.example</span>
-                      <button
-                        type="button"
-                        className="button"
-                        style={{ padding: '4px 10px', fontSize: '11px' }}
-                        onClick={() => copyToClipboard(`POSTGRES_PASSWORD=Stronghold_2501
-KC_ADMIN_USER=admin
-KC_ADMIN_PASSWORD=Admin@2601
-KEYCLOAK_REALM=farm360
-API_AUDIENCE=farm360-api`, 'env')}
-                      >
-                        {copiedCode === 'env' ? '✓ Copied' : 'Copy .env.example'}
-                      </button>
-                    </div>
-                    <div className="code-block" style={{ margin: 0 }}>
-                      <pre>{`# Keycloak & PostgreSQL Credentials
-POSTGRES_PASSWORD=Stronghold_2501
-KC_ADMIN_USER=admin
-KC_ADMIN_PASSWORD=Admin@2601
-
-# Realm & Audience Guardrails
-KEYCLOAK_REALM=farm360
-API_AUDIENCE=farm360-api
-TOKEN_ISSUER=http://localhost:8080/realms/farm360`}</pre>
+      - "127.0.0.1:3000:80"`}</pre>
                     </div>
                   </div>
                 )}
@@ -1463,79 +1694,117 @@ TOKEN_ISSUER=http://localhost:8080/realms/farm360`}</pre>
         )}
 
         {/* ============================================================= */}
-        {/* TAB 5: SECURITY AUDIT & IAM BEST PRACTICES                    */}
+        {/* TAB 5: 16-EXPLOIT AUDIT & MATRIX                              */}
         {/* ============================================================= */}
         {activeTab === 'security' && (
           <section className="section" style={{ paddingTop: '16px' }}>
             <div className="container">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-                {/* Security Matrix */}
-                <div className="standalone-card" style={{ padding: '24px' }}>
-                  <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>Security Audit</span>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '18px' }}>Authentication Pattern Security Tradeoffs</h3>
+              {/* 16-Exploit Test Matrix */}
+              <div className="standalone-card" style={{ padding: '24px', marginBottom: '24px' }}>
+                <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>
+                  Automated Exploit Suite
+                </span>
+                <h3 style={{ margin: '0 0 16px', fontSize: '18px' }}>
+                  Phase 2 Automated Security Unit Test Matrix (16/16 Passed)
+                </h3>
 
-                  <div className="guide-table-wrap" style={{ margin: 0 }}>
-                    <table className="guide-table">
-                      <thead>
-                        <tr>
-                          <th>Vector</th>
-                          <th>Naive / Basic Auth</th>
-                          <th>Keycloak OIDC + RS256</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td><strong>Credential Storage</strong></td>
-                          <td style={{ color: 'var(--red)' }}>Passwords handled by application APIs</td>
-                          <td style={{ color: 'var(--teal)' }}>Centralized Argon2/PBKDF2 in Keycloak only</td>
-                        </tr>
-                        <tr>
-                          <td><strong>Token Tampering</strong></td>
-                          <td style={{ color: 'var(--red)' }}>Unsigned or weak HMAC keys prone to brute force</td>
-                          <td style={{ color: 'var(--teal)' }}>2048-bit RSA asymmetric digital signatures</td>
-                        </tr>
-                        <tr>
-                          <td><strong>Service Scaling</strong></td>
-                          <td style={{ color: 'var(--amber)' }}>Central DB queried on every API hit</td>
-                          <td style={{ color: 'var(--teal)' }}>Stateless verification via cached JWKS certs</td>
-                        </tr>
-                        <tr>
-                          <td><strong>Account Lockout / MFA</strong></td>
-                          <td style={{ color: 'var(--red)' }}>Must be coded manually into each service</td>
-                          <td style={{ color: 'var(--teal)' }}>Built-in TOTP, WebAuthn & brute-force detection</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="guide-table-wrap" style={{ margin: 0 }}>
+                  <table className="guide-table">
+                    <thead>
+                      <tr>
+                        <th>Test Function</th>
+                        <th>Attack Vector</th>
+                        <th>Vulnerable (Naive) Result</th>
+                        <th>Hardened (Production) Mitigation</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><code>test_valid_token_is_accepted</code></td>
+                        <td>Happy Path</td>
+                        <td>Accepted</td>
+                        <td>Verified RS256 signature, exp, iss, aud</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_expired_token_rejected</code></td>
+                        <td>Token Replay</td>
+                        <td style={{ color: 'var(--red)' }}>Ignored if verify_exp=False</td>
+                        <td style={{ color: 'var(--teal)' }}>Raises jwt.ExpiredSignatureError</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_wrong_audience_rejected</code></td>
+                        <td>Audience Confusion</td>
+                        <td style={{ color: 'var(--red)' }}>Cross-service token reuse</td>
+                        <td style={{ color: 'var(--teal)' }}>Raises jwt.InvalidAudienceError</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_wrong_issuer_rejected</code></td>
+                        <td>Rogue IdP</td>
+                        <td style={{ color: 'var(--red)' }}>Tokens from evil.example accepted</td>
+                        <td style={{ color: 'var(--teal)' }}>Raises jwt.InvalidIssuerError</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_tampered_payload_rejected</code></td>
+                        <td>Privilege Escalation</td>
+                        <td style={{ color: 'var(--red)' }}>Admin role injected in claims</td>
+                        <td style={{ color: 'var(--teal)' }}>Raises jwt.InvalidSignatureError</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_alg_none_rejected</code></td>
+                        <td>RFC 7519 Signature Strip</td>
+                        <td style={{ color: 'var(--red)' }}>Unsigned token accepted as admin!</td>
+                        <td style={{ color: 'var(--teal)' }}>Blocked: algorithms=[&quot;RS256&quot;] allow-list</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_hs256_key_confusion</code></td>
+                        <td>CVE-2015-9235 (Public Key HMAC)</td>
+                        <td style={{ color: 'var(--red)' }}>Public RSA PEM used as HMAC secret!</td>
+                        <td style={{ color: 'var(--teal)' }}>Blocked: symmetric algorithms strictly prohibited</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_token_signed_attacker_key</code></td>
+                        <td>Foreign Key Substitution</td>
+                        <td style={{ color: 'var(--red)' }}>Self-signed attacker key accepted</td>
+                        <td style={{ color: 'var(--teal)' }}>Signature mismatch against KeyStore</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                      <tr>
+                        <td><code>test_rotation_until_retired</code></td>
+                        <td>Zero-Downtime Rotation</td>
+                        <td>Tokens break upon rotate</td>
+                        <td style={{ color: 'var(--teal)' }}>Dual-key window; drops only on retire()</td>
+                        <td style={{ color: 'var(--teal)' }}>PASSED ✓</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Defense-in-depth cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                <div className="standalone-card" style={{ padding: '24px' }}>
+                  <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>CVE Defense</span>
+                  <h4 style={{ margin: '0 0 12px', fontSize: '16px' }}>Defending CVE-2015-9235</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                    Never allow the caller to specify the cryptographic algorithm. Always pass an explicit single-algorithm allow-list:
+                    <code>algorithms=[&quot;RS256&quot;]</code>.
+                  </p>
                 </div>
 
-                {/* Defense-in-Depth Guardrails */}
                 <div className="standalone-card" style={{ padding: '24px' }}>
-                  <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>Production Hardening</span>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '18px' }}>IAM Defense-in-Depth Guardrails</h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                      <strong>1. Short Access Token TTL (5–15 Minutes)</strong>
-                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                        Short lifespans drastically reduce the attack window if an access token is leaked. Refresh tokens handle background renewal.
-                      </p>
-                    </div>
-
-                    <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                      <strong>2. HttpOnly, SameSite & Secure Cookie Storage</strong>
-                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                        Tokens stored in browser LocalStorage are vulnerable to Cross-Site Scripting (XSS). Storing refresh tokens in <code>HttpOnly; SameSite=Strict</code> cookies mitigates token exfiltration.
-                      </p>
-                    </div>
-
-                    <div className="guide-box" style={{ borderLeft: '3px solid var(--teal)' }}>
-                      <strong>3. Audience & Issuer Strict Validation</strong>
-                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                        Prevent token substitution attacks by enforcing that <code>iss</code> matches the exact realm URL and <code>aud</code> matches the intended API identifier.
-                      </p>
-                    </div>
-                  </div>
+                  <span className="control-label" style={{ display: 'block', marginBottom: '8px' }}>JWKS Integrity</span>
+                  <h4 style={{ margin: '0 0 12px', fontSize: '16px' }}>Key ID (kid) Matching</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                    Always lookup the public certificate in the KeyStore by matching the token&apos;s <code>kid</code> header. Unknown or missing <code>kid</code> headers are rejected immediately.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1545,4 +1814,3 @@ TOKEN_ISSUER=http://localhost:8080/realms/farm360`}</pre>
     </div>
   )
 }
-
