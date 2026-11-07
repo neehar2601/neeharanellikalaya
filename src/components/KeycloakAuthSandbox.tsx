@@ -223,10 +223,8 @@ export function KeycloakAuthSandbox() {
   const [activeConfig, setActiveConfig] = useState<ConfigTab>('phase2-auth')
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
-  // Diagram mode states per tab
+  // Diagram mode state for What, How & Why guide
   const [guideDiagramMode, setGuideDiagramMode] = useState<DiagramMode>('architecture')
-  const [p1DiagramMode, setP1DiagramMode] = useState<DiagramMode>('live-topology')
-  const [p2DiagramMode, setP2DiagramMode] = useState<DiagramMode>('live-topology')
 
   // Phase 1 Simulation state
   const [selectedPersonaP1, setSelectedPersonaP1] = useState<AuthPersona>('farmer')
@@ -459,7 +457,6 @@ export function KeycloakAuthSandbox() {
                 </p>
 
                 <AuthTopologyMap
-                  phase="phase-1"
                   persona="admin"
                   endpoint="crops"
                   decision="ALLOW"
@@ -1059,46 +1056,15 @@ export function KeycloakAuthSandbox() {
                 </div>
               </div>
 
-              {/* Embedded Phase 1 Topology Diagram with Diagram Mode Switcher */}
+              {/* Embedded Phase 1 Topology Diagram */}
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                   <span className="control-label" style={{ margin: 0 }}>
-                    Phase 1 Live Topology &amp; Validation Engine
+                    Phase 1 Live Network Topology &amp; Validation Engine
                   </span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      type="button"
-                      className={`button ${p1DiagramMode === 'live-topology' ? 'primary' : ''}`}
-                      style={{ fontSize: '10px', padding: '4px 8px' }}
-                      onClick={() => setP1DiagramMode('live-topology')}
-                    >
-                      ⚡ 1. Live Keycloak Network
-                    </button>
-                    <button
-                      type="button"
-                      className={`button ${p1DiagramMode === 'architecture' ? 'primary' : ''}`}
-                      style={{ fontSize: '10px', padding: '4px 8px' }}
-                      onClick={() => setP1DiagramMode('architecture')}
-                    >
-                      🏛️ 2. Issuer vs API
-                    </button>
-                    <button
-                      type="button"
-                      className={`button ${p1DiagramMode === 'validation-pipeline' ? 'primary' : ''}`}
-                      style={{ fontSize: '10px', padding: '4px 8px' }}
-                      onClick={() => setP1DiagramMode('validation-pipeline')}
-                    >
-                      🔍 3. 6-Step Validation
-                    </button>
-                    <button
-                      type="button"
-                      className={`button ${p1DiagramMode === 'hostname-split' ? 'primary' : ''}`}
-                      style={{ fontSize: '10px', padding: '4px 8px' }}
-                      onClick={() => setP1DiagramMode('hostname-split')}
-                    >
-                      🌐 4. Hostname Split
-                    </button>
-                  </div>
+                  <span className="tag" style={{ font: '10px var(--mono)', color: 'var(--teal)' }}>
+                    Real-Time Packet Flow
+                  </span>
                 </div>
 
                 <AuthTopologyMap
@@ -1106,8 +1072,7 @@ export function KeycloakAuthSandbox() {
                   persona={selectedPersonaP1}
                   endpoint={selectedEndpointP1}
                   decision={decisionP1}
-                  diagramMode={p1DiagramMode}
-                  onSelectDiagramMode={(mode) => setP1DiagramMode(mode)}
+                  diagramMode="live-topology"
                 />
               </div>
 
@@ -1506,46 +1471,15 @@ export function KeycloakAuthSandbox() {
                   </div>
                 </div>
 
-                {/* Embedded Phase 2 Topology Diagram with Mode Switcher */}
+                {/* Embedded Phase 2 Topology Diagram */}
                 <div style={{ marginBottom: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                     <span className="control-label" style={{ margin: 0 }}>
-                      Phase 2 Cryptographic Attack &amp; Rotation Topology
+                      Phase 2 Cryptographic Exploit &amp; Defense Topology
                     </span>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        type="button"
-                        className={`button ${p2DiagramMode === 'live-topology' ? 'primary' : ''}`}
-                        style={{ fontSize: '10px', padding: '4px 8px' }}
-                        onClick={() => setP2DiagramMode('live-topology')}
-                      >
-                        ⚡ 1. Live Exploit Flow
-                      </button>
-                      <button
-                        type="button"
-                        className={`button ${p2DiagramMode === 'attack-matrix' ? 'primary' : ''}`}
-                        style={{ fontSize: '10px', padding: '4px 8px' }}
-                        onClick={() => setP2DiagramMode('attack-matrix')}
-                      >
-                        💥 2. Attack Matrix vs Defenses
-                      </button>
-                      <button
-                        type="button"
-                        className={`button ${p2DiagramMode === 'key-rotation' ? 'primary' : ''}`}
-                        style={{ fontSize: '10px', padding: '4px 8px' }}
-                        onClick={() => setP2DiagramMode('key-rotation')}
-                      >
-                        🔄 3. Key Rotation Overlap
-                      </button>
-                      <button
-                        type="button"
-                        className={`button ${p2DiagramMode === 'validation-pipeline' ? 'primary' : ''}`}
-                        style={{ fontSize: '10px', padding: '4px 8px' }}
-                        onClick={() => setP2DiagramMode('validation-pipeline')}
-                      >
-                        🔍 4. 6-Step Validation
-                      </button>
-                    </div>
+                    <span className="tag" style={{ font: '10px var(--mono)', color: 'var(--teal)' }}>
+                      Dual-Verifier Bench
+                    </span>
                   </div>
 
                   <AuthTopologyMap
@@ -1554,8 +1488,7 @@ export function KeycloakAuthSandbox() {
                     endpoint={selectedEndpointP2}
                     decision={decisionP2}
                     activeExploit={activeExploit}
-                    diagramMode={p2DiagramMode}
-                    onSelectDiagramMode={(mode) => setP2DiagramMode(mode)}
+                    diagramMode="live-topology"
                   />
                 </div>
 

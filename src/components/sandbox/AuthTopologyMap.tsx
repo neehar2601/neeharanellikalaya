@@ -308,78 +308,16 @@ export function AuthTopologyMap({
           </p>
         </div>
 
-        {/* DIAGRAM MODE SWITCHER BUTTONS TAILORED PER PHASE */}
+        {/* DIAGRAM MODE SWITCHER BUTTONS (SHOWN ONLY ON WHAT, HOW & WHY ARCHITECTURE PAGE) */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
           {isPhase2 ? (
-            <>
-              <button
-                type="button"
-                className={`button ${activeMode === 'live-topology' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('live-topology')}
-              >
-                ⚡ 1. Live Exploit Flow
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'attack-matrix' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('attack-matrix')}
-              >
-                💥 2. Attack Matrix
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'key-rotation' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('key-rotation')}
-              >
-                🔄 3. Key Rotation Overlap
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'validation-pipeline' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('validation-pipeline')}
-              >
-                🔍 4. 6-Step Validation
-              </button>
-            </>
+            <span className="tag" style={{ font: '10px var(--mono)', color: 'var(--teal)', border: '1px solid rgba(79,209,197,0.3)' }}>
+              ⚡ LIVE EXPLOIT &amp; DUAL-VERIFIER BENCH
+            </span>
           ) : phase === 'phase-1' ? (
-            <>
-              <button
-                type="button"
-                className={`button ${activeMode === 'live-topology' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('live-topology')}
-              >
-                ⚡ 1. Live Keycloak Network
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'architecture' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('architecture')}
-              >
-                🏛️ 2. Issuer vs API
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'validation-pipeline' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('validation-pipeline')}
-              >
-                🔍 3. 6-Step Validation
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'hostname-split' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('hostname-split')}
-              >
-                🌐 4. Hostname Split
-              </button>
-            </>
+            <span className="tag" style={{ font: '10px var(--mono)', color: 'var(--teal)', border: '1px solid rgba(79,209,197,0.3)' }}>
+              ⚡ LIVE KEYCLOAK &amp; POSTGRES NETWORK
+            </span>
           ) : (
             <>
               <button
@@ -421,14 +359,6 @@ export function AuthTopologyMap({
                 onClick={() => setMode('key-rotation')}
               >
                 🔄 5. Key Rotation
-              </button>
-              <button
-                type="button"
-                className={`button ${activeMode === 'live-topology' ? 'primary' : ''}`}
-                style={{ fontSize: '10px', padding: '5px 10px' }}
-                onClick={() => setMode('live-topology')}
-              >
-                ⚡ 6. Live Topology
               </button>
             </>
           )}
