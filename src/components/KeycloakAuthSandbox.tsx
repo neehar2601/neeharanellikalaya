@@ -225,8 +225,8 @@ export function KeycloakAuthSandbox() {
 
   // Diagram mode states per tab
   const [guideDiagramMode, setGuideDiagramMode] = useState<DiagramMode>('architecture')
-  const [p1DiagramMode, setP1DiagramMode] = useState<DiagramMode>('architecture')
-  const [p2DiagramMode, setP2DiagramMode] = useState<DiagramMode>('attack-matrix')
+  const [p1DiagramMode, setP1DiagramMode] = useState<DiagramMode>('live-topology')
+  const [p2DiagramMode, setP2DiagramMode] = useState<DiagramMode>('live-topology')
 
   // Phase 1 Simulation state
   const [selectedPersonaP1, setSelectedPersonaP1] = useState<AuthPersona>('farmer')
@@ -1068,11 +1068,19 @@ export function KeycloakAuthSandbox() {
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button
                       type="button"
+                      className={`button ${p1DiagramMode === 'live-topology' ? 'primary' : ''}`}
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => setP1DiagramMode('live-topology')}
+                    >
+                      ⚡ 1. Live Keycloak Network
+                    </button>
+                    <button
+                      type="button"
                       className={`button ${p1DiagramMode === 'architecture' ? 'primary' : ''}`}
                       style={{ fontSize: '10px', padding: '4px 8px' }}
                       onClick={() => setP1DiagramMode('architecture')}
                     >
-                      🏛️ Issuer vs API
+                      🏛️ 2. Issuer vs API
                     </button>
                     <button
                       type="button"
@@ -1080,7 +1088,7 @@ export function KeycloakAuthSandbox() {
                       style={{ fontSize: '10px', padding: '4px 8px' }}
                       onClick={() => setP1DiagramMode('validation-pipeline')}
                     >
-                      🔍 6-Step Validation
+                      🔍 3. 6-Step Validation
                     </button>
                     <button
                       type="button"
@@ -1088,7 +1096,7 @@ export function KeycloakAuthSandbox() {
                       style={{ fontSize: '10px', padding: '4px 8px' }}
                       onClick={() => setP1DiagramMode('hostname-split')}
                     >
-                      🌐 Hostname Split Gotcha
+                      🌐 4. Hostname Split
                     </button>
                   </div>
                 </div>
@@ -1507,11 +1515,19 @@ export function KeycloakAuthSandbox() {
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         type="button"
+                        className={`button ${p2DiagramMode === 'live-topology' ? 'primary' : ''}`}
+                        style={{ fontSize: '10px', padding: '4px 8px' }}
+                        onClick={() => setP2DiagramMode('live-topology')}
+                      >
+                        ⚡ 1. Live Exploit Flow
+                      </button>
+                      <button
+                        type="button"
                         className={`button ${p2DiagramMode === 'attack-matrix' ? 'primary' : ''}`}
                         style={{ fontSize: '10px', padding: '4px 8px' }}
                         onClick={() => setP2DiagramMode('attack-matrix')}
                       >
-                        💥 Attack Matrix vs Defenses
+                        💥 2. Attack Matrix vs Defenses
                       </button>
                       <button
                         type="button"
@@ -1519,7 +1535,7 @@ export function KeycloakAuthSandbox() {
                         style={{ fontSize: '10px', padding: '4px 8px' }}
                         onClick={() => setP2DiagramMode('key-rotation')}
                       >
-                        🔄 Key Rotation Overlap
+                        🔄 3. Key Rotation Overlap
                       </button>
                       <button
                         type="button"
@@ -1527,7 +1543,7 @@ export function KeycloakAuthSandbox() {
                         style={{ fontSize: '10px', padding: '4px 8px' }}
                         onClick={() => setP2DiagramMode('validation-pipeline')}
                       >
-                        🔍 6-Step Validation
+                        🔍 4. 6-Step Validation
                       </button>
                     </div>
                   </div>
